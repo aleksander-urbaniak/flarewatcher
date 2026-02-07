@@ -268,8 +268,10 @@ export default function LogsPanel() {
           current?: string | null;
           previous?: string | null;
         };
-        setCurrentIp(parsed.current ?? null);
-        setPreviousIp(parsed.previous ?? null);
+        const current = parsed.current?.trim() || null;
+        const previous = parsed.previous?.trim() || null;
+        setCurrentIp(current);
+        setPreviousIp(current && previous && current === previous ? null : previous);
       }
     } catch {
       setCurrentIp(null);

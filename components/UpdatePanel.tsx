@@ -17,6 +17,11 @@ import ZoneManagementPanel from "@/components/zones/ZoneManagementPanel";
 import NotificationsBell from "@/components/NotificationsBell";
 import UserBadge from "@/components/UserBadge";
 import TopNavLinks from "@/components/TopNavLinks";
+import {
+  DEFAULT_DISCORD_TEMPLATE,
+  DEFAULT_SMTP_TEMPLATE,
+  normalizeDiscordTemplate,
+} from "@/lib/alertTemplates";
 import { pushNotification } from "@/lib/clientNotifications";
 
 type Zone = {
@@ -135,18 +140,8 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
   });
   const [selectedRecords, setSelectedRecords] = useState<Set<string>>(new Set());
   const [discordWebhookUrl, setDiscordWebhookUrl] = useState("");
-  const DEFAULT_DISCORD_MARKDOWN =
-    "\u{1F310} **Network Alert: IP Address Change Detected**\n\n" +
-    "**Status Update**\n" +
-    "The monitoring system has detected a change in your external network configuration. " +
-    "Your connection has been updated successfully.\n\n" +
-    "**Attribute** | **Details**\n" +
-    "**Status** | \u{1F7E2} Active / Updated\n" +
-    "**Previous IP** | {previousIp}\n" +
-    "**Current IP** | {currentIp}\n" +
-    "**Detection Time** | {timestamp}";
-  const DEFAULT_SMTP_MESSAGE =
-    "{title}\n\n{message}\n\nPrevious IP: {previousIp}\nCurrent IP: {currentIp}\nTimestamp: {timestamp}";
+  const DEFAULT_DISCORD_MARKDOWN = DEFAULT_DISCORD_TEMPLATE;
+  const DEFAULT_SMTP_MESSAGE = DEFAULT_SMTP_TEMPLATE;
   const [discordMarkdown, setDiscordMarkdown] = useState(DEFAULT_DISCORD_MARKDOWN);
   const [smtpHost, setSmtpHost] = useState("");
   const [smtpPort, setSmtpPort] = useState("");
@@ -247,7 +242,9 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
         body: JSON.stringify({
           type,
           discordWebhookUrl: discordWebhookUrl || null,
-          discordMarkdown: discordMarkdown || null,
+          discordMarkdown: normalizeDiscordTemplate(
+            discordMarkdown || DEFAULT_DISCORD_MARKDOWN
+          ),
           smtpHost: smtpHost || null,
           smtpPort: smtpPort ? Number(smtpPort) || null : null,
           smtpUser: smtpUser || null,
@@ -271,6 +268,7 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
     }
   }, [
     addLog,
+    DEFAULT_DISCORD_MARKDOWN,
     discordMarkdown,
     discordWebhookUrl,
     smtpFrom,
@@ -312,9 +310,17 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
       if (typeof window === "undefined") {
         return;
       }
+      const normalizedCurrent = current?.trim() || null;
+      const normalizedPrevious = previous?.trim() || null;
+      const safePrevious =
+        normalizedCurrent &&
+        normalizedPrevious &&
+        normalizedCurrent === normalizedPrevious
+          ? null
+          : normalizedPrevious;
       localStorage.setItem(
         IP_STORAGE_KEY,
-        JSON.stringify({ current, previous })
+        JSON.stringify({ current: normalizedCurrent, previous: safePrevious })
       );
     },
     [IP_STORAGE_KEY]
@@ -333,7 +339,11 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
         current?: string | null;
         previous?: string | null;
       };
-      return { current: parsed.current ?? null, previous: parsed.previous ?? null };
+      const current = parsed.current?.trim() || null;
+      const previous = parsed.previous?.trim() || null;
+      const safePrevious =
+        current && previous && current === previous ? null : previous;
+      return { current, previous: safePrevious };
     } catch {
       return { current: null as string | null, previous: null as string | null };
     }
@@ -419,7 +429,11 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
       setIntervalMinutes(settings.intervalMinutes || defaultInterval);
       setMonitoredRecords((settings.monitoredRecords as MonitoredRecord[]) || []);
       setDiscordWebhookUrl(settings.discordWebhookUrl ?? "");
-      setDiscordMarkdown(settings.discordMarkdown ?? DEFAULT_DISCORD_MARKDOWN);
+      setDiscordMarkdown(
+        normalizeDiscordTemplate(
+          settings.discordMarkdown ?? DEFAULT_DISCORD_MARKDOWN
+        )
+      );
       setAlertEnabled((prev) => ({
         ...prev,
         discord: settings.discordEnabled ?? true,
@@ -462,7 +476,8 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
       discordWebhookUrl:
         override?.discordWebhookUrl ?? (discordWebhookUrl || null),
       discordMarkdown:
-        override?.discordMarkdown ?? (discordMarkdown || null),
+        override?.discordMarkdown ??
+        normalizeDiscordTemplate(discordMarkdown || DEFAULT_DISCORD_MARKDOWN),
       discordEnabled: override?.discordEnabled ?? alertEnabled.discord,
       smtpHost: override?.smtpHost ?? (smtpHost || null),
       smtpPort:
@@ -500,6 +515,7 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
     addLog,
     addNotification,
     alertEnabled,
+    DEFAULT_DISCORD_MARKDOWN,
     discordMarkdown,
     discordWebhookUrl,
     intervalMinutes,
@@ -518,7 +534,9 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
   const saveAlertingSettings = useCallback(() => {
     return saveSettings({
       discordWebhookUrl: discordWebhookUrl || null,
-      discordMarkdown: discordMarkdown || null,
+      discordMarkdown: normalizeDiscordTemplate(
+        discordMarkdown || DEFAULT_DISCORD_MARKDOWN
+      ),
       smtpHost: smtpHost || null,
       smtpPort: smtpPort ? Number(smtpPort) || null : null,
       smtpUser: smtpUser || null,
@@ -530,6 +548,7 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
       notifyOnFailure,
     });
   }, [
+    DEFAULT_DISCORD_MARKDOWN,
     discordMarkdown,
     discordWebhookUrl,
     notifyOnFailure,
@@ -810,8 +829,14 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
       );
       await refreshData();
       const ip = await fetchPublicIp();
-      setPreviousIp(currentIp);
-      setCurrentIp(ip);
+      if (ip !== currentIp) {
+        setPreviousIp(currentIp);
+        setCurrentIp(ip);
+        persistIpHistory(ip, currentIp);
+      } else if (!currentIp) {
+        setCurrentIp(ip);
+        persistIpHistory(ip, previousIp);
+      }
       await loadAuditLog();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Update failed.";
@@ -843,6 +868,8 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
     loadAuditLog,
     monitoredRecords,
     monitoredSet,
+    persistIpHistory,
+    previousIp,
     refreshData,
     saveSettings,
   ]);
@@ -912,11 +939,13 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
         await refreshData();
         await loadAuditLog();
         const ip = await fetchPublicIp();
-        if (ip !== storedIps.current) {
-          setPreviousIp(storedIps.current ?? null);
-        }
+        const nextPreviousIp =
+          ip !== storedIps.current
+            ? (storedIps.current ?? null)
+            : (storedIps.previous ?? null);
         setCurrentIp(ip);
-        persistIpHistory(ip, storedIps.current ?? null);
+        setPreviousIp(nextPreviousIp);
+        persistIpHistory(ip, nextPreviousIp);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Initialization failed.";
         addLog(message, "error");
@@ -1434,6 +1463,8 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
             testError={testError}
             defaultMarkdown={DEFAULT_DISCORD_MARKDOWN}
             defaultSmtpMessage={DEFAULT_SMTP_MESSAGE}
+            currentIp={currentIp}
+            previousIp={previousIp}
             notifyOnIpChange={notifyOnIpChange}
             notifyOnFailure={notifyOnFailure}
             onDiscordWebhookUrl={setDiscordWebhookUrl}

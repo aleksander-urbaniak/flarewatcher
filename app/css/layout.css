@@ -741,6 +741,59 @@ html[data-theme="light"] .access-card.v3 .delete-btn {
   letter-spacing: 0.24em;
 }
 
+.zone-panel .content-header h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: clamp(1.48rem, 2.2vw, 1.72rem);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: #f8fafc;
+}
+
+.zone-panel .zone-active-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 12px 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(16, 185, 129, 0.38);
+  background: linear-gradient(
+    180deg,
+    rgba(16, 185, 129, 0.22) 0%,
+    rgba(16, 185, 129, 0.12) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 6px 14px rgba(16, 185, 129, 0.16);
+  color: #a7f3d0;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  line-height: 1;
+}
+
+html.theme-light .zone-panel .content-header h3,
+html[data-theme="light"] .zone-panel .content-header h3 {
+  color: #0f172a;
+}
+
+html.theme-light .zone-panel .zone-active-pill,
+html[data-theme="light"] .zone-panel .zone-active-pill {
+  border-color: rgba(5, 150, 105, 0.34);
+  background: linear-gradient(
+    180deg,
+    rgba(16, 185, 129, 0.2) 0%,
+    rgba(16, 185, 129, 0.11) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 4px 10px rgba(5, 150, 105, 0.1);
+  color: #047857;
+}
+
 .content-header p {
   margin: 6px 0 0;
   color: #6b7280;
@@ -1365,22 +1418,30 @@ html[data-theme="light"] .zone-card .tag.warn {
   justify-content: center;
 }
 
-.table-toggle {
+.toggle-switch {
   width: 40px;
   height: 20px;
   border-radius: 999px;
   border: none;
+  padding: 0;
   background: rgba(255, 255, 255, 0.1);
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  appearance: none;
+  -webkit-appearance: none;
+  line-height: 0;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
 }
 
-.zone-card.light .table-toggle {
+.zone-card.light .toggle-switch {
   background: #e2e8f0;
 }
 
-.table-toggle span {
+.toggle-switch::before {
+  content: "";
   position: absolute;
   width: 12px;
   height: 12px;
@@ -1391,28 +1452,28 @@ html[data-theme="light"] .zone-card .tag.warn {
   transition: transform 0.2s ease;
 }
 
-.zone-card.light .table-toggle span {
+.zone-card.light .toggle-switch::before {
   background: #fff;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
 }
 
-html.theme-light .zone-card .table-toggle,
-html[data-theme="light"] .zone-card .table-toggle {
+html.theme-light .zone-card .toggle-switch,
+html[data-theme="light"] .zone-card .toggle-switch {
   background: #e2e8f0;
 }
 
-html.theme-light .zone-card .table-toggle span,
-html[data-theme="light"] .zone-card .table-toggle span {
+html.theme-light .zone-card .toggle-switch::before,
+html[data-theme="light"] .zone-card .toggle-switch::before {
   background: #fff;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
 }
 
-.table-toggle.on {
+.toggle-switch.on {
   background: #f97316;
   box-shadow: 0 0 12px rgba(249, 115, 22, 0.4);
 }
 
-.table-toggle.on span {
+.toggle-switch.on::before {
   transform: translateX(18px);
 }
 

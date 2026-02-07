@@ -11,9 +11,8 @@ export default function ToggleSwitch({
     <button
       type="button"
       onClick={onChange}
-      className={`table-toggle ${enabled ? "on" : "off"}`}
-    >
-      <span />
-    </button>
+      className={`toggle-switch ${enabled ? "on" : "off"}`}
+      aria-pressed={enabled}
+    />
   );
 }

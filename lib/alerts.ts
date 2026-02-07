@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { decryptSecret } from "@/lib/secrets";
+import {
+  DEFAULT_DISCORD_TEMPLATE,
+  DEFAULT_SMTP_TEMPLATE,
+  normalizeDiscordTemplate,
+} from "@/lib/alertTemplates";
 
 type AlertPayload = {
   title: string;
@@ -9,17 +14,6 @@ type AlertPayload = {
 };
 
 const safeTrim = (value?: string | null) => (value ? value.trim() : "");
-const DEFAULT_DISCORD_TEMPLATE =
-  "**Network Alert: IP Address Change Detected**\n\n" +
-  "**Status Update**\n" +
-  "The monitoring system has detected a change in your external network configuration. " +
-  "Your connection has been updated successfully.\n\n" +
-  "**Attribute** | **Details**\n" +
-  "**Status** | Active / Updated\n" +
-  "**Previous IP** | {previousIp}\n" +
-  "**Current IP** | {currentIp}\n" +
-  "**Detection Time** | {timestamp}";
-
 export async function sendAlerts(userId: string, payload: AlertPayload) {
   const settings = await prisma.userSettings.findUnique({
     where: { userId },
@@ -37,10 +31,10 @@ export async function sendAlerts(userId: string, payload: AlertPayload) {
   const smtpEnabled = settings.smtpEnabled ?? true;
   const smtpPass = safeTrim(decryptSecret(settings.smtpPass));
 
-  const discordTemplate = discordMarkdown || DEFAULT_DISCORD_TEMPLATE;
-  const smtpTemplate =
-    smtpMessage ||
-    "{title}\n\n{message}\n\nPrevious IP: {previousIp}\nCurrent IP: {currentIp}\nTimestamp: {timestamp}";
+  const discordTemplate = normalizeDiscordTemplate(
+    discordMarkdown || DEFAULT_DISCORD_TEMPLATE
+  );
+  const smtpTemplate = smtpMessage || DEFAULT_SMTP_TEMPLATE;
   const discordMessage = discordTemplate
     .replaceAll("{title}", payload.title)
     .replaceAll("{message}", payload.body)
@@ -139,15 +133,15 @@ export async function sendTestAlert(
 
   const title = "Flarewatcher test alert";
   const body = "This is a test alert from Flarewatcher.";
-  const smtpTemplate =
-    smtpMessage ||
-    "{title}\n\n{message}\n\nPrevious IP: {previousIp}\nCurrent IP: {currentIp}\nTimestamp: {timestamp}";
+  const smtpTemplate = smtpMessage || DEFAULT_SMTP_TEMPLATE;
 
   if (type === "discord") {
     if (!discordWebhookUrl) {
       throw new Error("Discord webhook is missing.");
     }
-    const template = discordMarkdown || DEFAULT_DISCORD_TEMPLATE;
+    const template = normalizeDiscordTemplate(
+      discordMarkdown || DEFAULT_DISCORD_TEMPLATE
+    );
     const discordMessage = template
       .replaceAll("{title}", title)
       .replaceAll("{message}", body)

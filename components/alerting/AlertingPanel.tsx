@@ -15,6 +15,7 @@ import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 
 import ToggleSwitch from "@/components/common/ToggleSwitch";
+import { normalizeDiscordTemplate } from "@/lib/alertTemplates";
 
 type AlertingPanelProps = {
   discordWebhookUrl: string;
@@ -31,6 +32,8 @@ type AlertingPanelProps = {
   testError: { discord?: string | null; smtp?: string | null };
   defaultMarkdown: string;
   defaultSmtpMessage: string;
+  currentIp: string | null;
+  previousIp: string | null;
   notifyOnIpChange: boolean;
   notifyOnFailure: boolean;
   onDiscordWebhookUrl: (value: string) => void;
@@ -65,6 +68,8 @@ export default function AlertingPanel({
   testError,
   defaultMarkdown,
   defaultSmtpMessage,
+  currentIp,
+  previousIp,
   notifyOnIpChange,
   notifyOnFailure,
   onDiscordWebhookUrl,
@@ -103,17 +108,17 @@ export default function AlertingPanel({
     { token: "{currentIp}", description: "Current public IP." },
     { token: "{timestamp}", description: "Local time when the alert is sent." },
   ];
-  const previewValues = useMemo(
-    () => ({
+  const previewValues = useMemo(() => {
+    const previewPreviousIp = previousIp?.trim() || "-";
+    const previewCurrentIp = currentIp?.trim() || "N/A";
+    return {
       "{title}": "Flarewatcher IP change",
-      "{message}":
-        "The watched record was updated to the latest detected public IP.",
-      "{previousIp}": "203.0.113.24",
-      "{currentIp}": "198.51.100.42",
+      "{message}": `Previous IP: ${previewPreviousIp}\nCurrent IP: ${previewCurrentIp}`,
+      "{previousIp}": previewPreviousIp,
+      "{currentIp}": previewCurrentIp,
       "{timestamp}": new Date().toLocaleString(),
-    }),
-    []
-  );
+    };
+  }, [currentIp, previousIp]);
 
   const applyPreviewValues = (template: string) => {
     return Object.entries(previewValues).reduce((result, [token, value]) => {
@@ -121,7 +126,9 @@ export default function AlertingPanel({
     }, template);
   };
 
-  const discordPreview = applyPreviewValues(discordMarkdown || defaultMarkdown);
+  const discordPreview = applyPreviewValues(
+    normalizeDiscordTemplate(discordMarkdown || defaultMarkdown)
+  );
   const smtpPreview = applyPreviewValues(smtpMessage || defaultSmtpMessage);
 
   const insertPlaceholder = (

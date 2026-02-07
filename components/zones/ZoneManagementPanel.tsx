@@ -167,7 +167,7 @@ export default function ZoneManagementPanel({
           <div>
             <h3>
               Zone management
-              <span className="status-pill">Active</span>
+              <span className="status-pill zone-active-pill">Active</span>
             </h3>
             <p>
               Managing {zones.length} configured zones with {recordCount} active
