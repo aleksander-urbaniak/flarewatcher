@@ -28,7 +28,6 @@ cp .env.example .env
 
 2. Set required values in `.env`:
 
-- `FLAREWATCHER_IMAGE=<REGISTRY>/<NAMESPACE>/<IMAGE_NAME>:latest`
 - `SECRET_ENCRYPTION_KEY=<strong-random-value>`
 
 3. Start:
@@ -98,6 +97,12 @@ Configure repository variables:
 - `DOCKER_NAMESPACE`
 - `DOCKER_IMAGE_NAME`
 
+Default values when variables are not set:
+
+- `DOCKER_REGISTRY=docker.io`
+- `DOCKER_NAMESPACE=aleksanderurbaniak`
+- `DOCKER_IMAGE_NAME=flarewatcher`
+
 Configure repository secrets:
 
 - `DOCKER_USERNAME`
@@ -125,7 +130,6 @@ CI security gates:
 ## Environment Variables
 
 ```bash
-FLAREWATCHER_IMAGE=<REGISTRY>/<NAMESPACE>/<IMAGE_NAME>:latest
 DATABASE_URL=file:./prisma/flarewatcher.db
 SECRET_ENCRYPTION_KEY=replace-with-a-long-random-secret
 ```

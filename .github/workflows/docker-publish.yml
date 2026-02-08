@@ -17,9 +17,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  REGISTRY: ${{ vars.DOCKER_REGISTRY || 'ghcr.io' }}
-  NAMESPACE: ${{ vars.DOCKER_NAMESPACE || github.repository_owner }}
-  IMAGE_NAME: ${{ vars.DOCKER_IMAGE_NAME || github.event.repository.name }}
+  REGISTRY: ${{ vars.DOCKER_REGISTRY || 'docker.io' }}
+  NAMESPACE: ${{ vars.DOCKER_NAMESPACE || 'aleksanderurbaniak' }}
+  IMAGE_NAME: ${{ vars.DOCKER_IMAGE_NAME || 'flarewatcher' }}
 
 jobs:
   docker:
