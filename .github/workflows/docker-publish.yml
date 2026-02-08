@@ -4,11 +4,9 @@ on:
   push:
     branches:
       - main
-    tags:
-      - "v*"
 
 permissions:
-  contents: read
+  contents: write
   packages: write
   security-events: write
 
@@ -40,16 +38,34 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Resolve app version from GitHub ref
+      - name: Resolve app version tag
         id: app-version
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const isTag = context.ref.startsWith("refs/tags/");
-            const value = isTag
-              ? context.ref.replace("refs/tags/", "")
-              : `main-${context.sha.slice(0, 7)}`;
-            core.setOutput("value", value);
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+
+          current_tag="$(git tag -l 'v*' --points-at HEAD --sort=-v:refname | head -n 1)"
+          if [ -n "${current_tag}" ]; then
+            echo "value=${current_tag}" >> "${GITHUB_OUTPUT}"
+            echo "created=false" >> "${GITHUB_OUTPUT}"
+            echo "Using existing tag on current commit: ${current_tag}"
+            exit 0
+          fi
+
+          latest_tag="$(git tag -l 'v*' --sort=-v:refname | head -n 1)"
+          if [ -z "${latest_tag}" ]; then
+            next_tag="v1.0.0"
+          else
+            version="${latest_tag#v}"
+            IFS='.' read -r major minor patch <<< "${version}"
+            patch=$((patch + 1))
+            next_tag="v${major}.${minor}.${patch}"
+          fi
+
+          echo "value=${next_tag}" >> "${GITHUB_OUTPUT}"
+          echo "created=true" >> "${GITHUB_OUTPUT}"
+          echo "Next tag: ${next_tag}"
 
       - name: Install dependencies
         run: npm ci
@@ -94,9 +110,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,format=short,prefix=main-,enable={{is_default_branch}}
-            type=ref,event=tag
+            type=raw,value=latest
+            type=raw,value=${{ steps.app-version.outputs.value }}
           labels: |
             org.opencontainers.image.version=${{ steps.app-version.outputs.value }}
 
@@ -122,6 +137,17 @@ jobs:
           exit-code: "1"
           format: table
 
+      - name: Create and push git tag
+        if: ${{ steps.app-version.outputs.created == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.app-version.outputs.value }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${tag}" -m "Release ${tag}"
+          git push origin "${tag}"
+
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
@@ -133,3 +159,16 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             APP_VERSION=${{ steps.app-version.outputs.value }}
+
+      - name: Create GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.app-version.outputs.value }}"
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            echo "Release ${tag} already exists; skipping."
+          else
+            gh release create "${tag}" --title "${tag}" --generate-notes
+          fi

@@ -60,8 +60,7 @@ npm run dev
 - Tag format: `vMAJOR.MINOR.PATCH` (example: `v1.0.0`)
 - Initial baseline release: `v1.0.0`
 - Runtime version source:
-  - release images: GitHub tag (example: `v1.0.0`)
-  - main images: GitHub commit (`main-<sha7>`)
+  - release images: CI-generated GitHub tag (example: `v1.0.0`)
   - local/non-CI fallback: `package.json` version
 
 Useful scripts:
@@ -71,10 +70,9 @@ Useful scripts:
 
 ## Release Process
 
-```bash
-git tag -a v1.0.0 -m "Release v1.0.0"
-git push origin v1.0.0
-```
+- On push to `main`, CI calculates the next patch tag from the latest `v*` tag
+- First release is `v1.0.0`, then `v1.0.1`, `v1.0.2`, ...
+- CI creates/pushes the git tag and creates a GitHub Release for that tag
 
 ## Docker Publish (GitHub Actions)
 
@@ -83,13 +81,11 @@ Workflow: `.github/workflows/docker-publish.yml`
 Triggers:
 
 - push to `main`
-- push tag `v*`
 
 Published tags:
 
 - `latest` on `main`
-- `main-<sha7>` on `main`
-- exact tag on release pushes (example: `v1.0.0`)
+- exact semver tag from CI (example: `v1.0.0`)
 
 Configure repository variables:
 
