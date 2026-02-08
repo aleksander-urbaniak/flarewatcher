@@ -2,12 +2,12 @@ const { spawnSync } = require("child_process");
 
 const BASELINE_MIGRATION = process.env.PRISMA_BASELINE_MIGRATION || "202602070001_init";
 const NON_EMPTY_SCHEMA_PATTERN = /P3005|database schema is not empty|already exists/i;
+const PRISMA_CLI = require.resolve("prisma/build/index.js");
 
 const runPrisma = (args, stdio = "pipe") =>
-  spawnSync("npx", ["prisma", ...args], {
+  spawnSync(process.execPath, [PRISMA_CLI, ...args], {
     stdio,
     encoding: "utf8",
-    shell: process.platform === "win32",
   });
 
 const outputText = (result) => `${result.stdout ?? ""}${result.stderr ?? ""}`;

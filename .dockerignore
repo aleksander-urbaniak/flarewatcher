@@ -1,5 +1,6 @@
 .git
 .gitignore
+.github
 .next
 node_modules
 npm-debug.log
@@ -25,5 +26,8 @@ coverage
 .idea
 .vscode
 .turbo
+README.md
+LICENSE
+docker-compose.yml
 tmp
 temp

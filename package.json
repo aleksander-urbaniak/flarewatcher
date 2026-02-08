@@ -6,11 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "start:prod": "node scripts/run-migrations.cjs && next start",
+    "start:prod": "node scripts/start-prod.cjs",
     "lint": "eslint .",
     "prisma:generate": "prisma generate",
     "prisma:db": "prisma db push",
-    "prisma:migrate": "prisma migrate deploy"
+    "prisma:migrate": "prisma migrate deploy",
+    "version:resolve": "node scripts/resolve-version.cjs",
+    "version:resolve:tag": "node scripts/resolve-version.cjs --with-v",
+    "security:audit": "node scripts/check-npm-audit-fixable.cjs"
   },
   "dependencies": {
     "@prisma/client": "6.19.2",
@@ -19,6 +22,7 @@
     "next": "16.1.6",
     "nodemailer": "^8.0.0",
     "otplib": "^13.2.1",
+    "prisma": "6.19.2",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-markdown": "^10.1.0",
@@ -33,7 +37,6 @@
     "@types/react-dom": "^19.2.3",
     "eslint": "9.39.2",
     "eslint-config-next": "16.1.6",
-    "prisma": "6.19.2",
     "typescript": "5.9.3"
   }
 }

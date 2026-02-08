@@ -8,6 +8,8 @@ export const runtime = "nodejs";
 
 export async function GET() {
   const startedAt = Date.now();
+  const appVersion =
+    process.env.APP_VERSION ?? process.env.NEXT_PUBLIC_APP_VERSION ?? "unknown";
   try {
     const user = await requireSessionUser();
 
@@ -35,6 +37,7 @@ export async function GET() {
 
     return NextResponse.json({
       status: "success",
+      version: appVersion,
       db: "ok",
       tokens: {
         total: tokens.length,

@@ -1,4 +1,6 @@
 /** @type {import("next").NextConfig} */
+const packageVersion = require("./package.json").version;
+
 const securityHeaders = [
   {
     key: "Content-Security-Policy",
@@ -31,6 +33,10 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  env: {
+    NEXT_PUBLIC_APP_VERSION:
+      process.env.NEXT_PUBLIC_APP_VERSION || process.env.APP_VERSION || packageVersion,
+  },
   images: {
     remotePatterns: [
       {

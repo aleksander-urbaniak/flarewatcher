@@ -28,3 +28,5 @@ coverage
 .turbo
 tmp
 temp
+docker-compose.override.yml
+npm-audit-report.json

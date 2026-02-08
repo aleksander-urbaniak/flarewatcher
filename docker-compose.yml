@@ -1,13 +1,13 @@
-version: "3.9"
 services:
   flarewatcher:
-    build: .
+    image: ${FLAREWATCHER_IMAGE:?set FLAREWATCHER_IMAGE in .env}
+    pull_policy: always
     ports:
       - "3000:3000"
     env_file:
       - .env
     environment:
-      DATABASE_URL: ${DATABASE_URL:-file:/app/data/flarewatcher.db}
+      DATABASE_URL: file:/app/data/flarewatcher.db
       SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY}
     volumes:
       - flarewatcher-data:/app/data
