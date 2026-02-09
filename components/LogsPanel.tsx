@@ -1185,7 +1185,7 @@ export default function LogsPanel() {
                         </time>
                         <div className="ip-timeline-route">
                           <code>{item.previousIp}</code>
-                          <span>to</span>
+                          <span aria-label="to">{"→"}</span>
                           <code>{item.currentIp}</code>
                         </div>
                       </article>

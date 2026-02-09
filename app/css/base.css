@@ -1607,6 +1607,9 @@ html[data-theme="light"] .stat-card strong {
   padding: 18px;
   display: grid;
   gap: 14px;
+  align-content: start;
+  align-items: start;
+  grid-auto-rows: max-content;
   flex: 1;
   min-height: 0;
   overflow: auto;
@@ -2001,8 +2004,8 @@ html[data-theme="light"] .stat-card strong {
 
 .ip-timeline-node {
   position: relative;
-  width: 240px;
-  min-width: 240px;
+  width: 276px;
+  min-width: 276px;
   height: 180px;
   flex: 0 0 auto;
 }
@@ -2082,10 +2085,12 @@ html[data-theme="light"] .stat-card strong {
 }
 
 .ip-timeline-route {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 .ip-timeline-route span {
@@ -2096,13 +2101,19 @@ html[data-theme="light"] .stat-card strong {
 }
 
 .ip-timeline-route code {
+  min-width: 0;
+  display: block;
+  text-align: center;
   font-family: var(--mono);
-  font-size: 0.68rem;
-  padding: 4px 8px;
+  font-size: 0.64rem;
+  padding: 3px 7px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(10, 10, 12, 0.6);
   color: #e5e7eb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ip-timeline-content time {
@@ -2132,8 +2143,8 @@ html[data-theme="light"] .stat-card strong {
   }
 
   .ip-timeline-node {
-    width: 220px;
-    min-width: 220px;
+    width: 252px;
+    min-width: 252px;
     height: auto;
     padding-top: 30px;
   }
