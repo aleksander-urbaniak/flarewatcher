@@ -172,8 +172,8 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
   const LOG_STORAGE_KEY = "flarewatcher:logs";
   const LOG_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
   const [alertEnabled, setAlertEnabled] = useState({
-    discord: true,
-    smtp: true,
+    discord: false,
+    smtp: false,
   });
 
   const persistLogs = useCallback(
@@ -436,8 +436,8 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
       );
       setAlertEnabled((prev) => ({
         ...prev,
-        discord: settings.discordEnabled ?? true,
-        smtp: settings.smtpEnabled ?? true,
+        discord: settings.discordEnabled ?? false,
+        smtp: settings.smtpEnabled ?? false,
       }));
       setSmtpHost(settings.smtpHost ?? "");
       setSmtpPort(settings.smtpPort?.toString() ?? "");

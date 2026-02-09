@@ -67,7 +67,7 @@ model UserSettings {
   telegramChatId   String?
   discordWebhookUrl String?
   discordMarkdown  String?
-  discordEnabled   Boolean  @default(true)
+  discordEnabled   Boolean  @default(false)
   smtpHost         String?
   smtpPort         Int?
   smtpUser         String?
@@ -75,7 +75,7 @@ model UserSettings {
   smtpFrom         String?
   smtpTo           String?
   smtpMessage      String?
-  smtpEnabled      Boolean  @default(true)
+  smtpEnabled      Boolean  @default(false)
   notifyOnIpChange Boolean  @default(true)
   notifyOnFailure  Boolean  @default(true)
   updatedAt        DateTime @updatedAt

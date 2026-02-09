@@ -25,10 +25,10 @@ export async function sendAlerts(userId: string, payload: AlertPayload) {
 
   const discordWebhookUrl = safeTrim(settings.discordWebhookUrl);
   const discordMarkdown = safeTrim(settings.discordMarkdown);
-  const discordEnabled = settings.discordEnabled ?? true;
+  const discordEnabled = settings.discordEnabled ?? false;
   const smtpMessage = safeTrim(settings.smtpMessage);
   const smtpTo = safeTrim(settings.smtpTo);
-  const smtpEnabled = settings.smtpEnabled ?? true;
+  const smtpEnabled = settings.smtpEnabled ?? false;
   const smtpPass = safeTrim(decryptSecret(settings.smtpPass));
 
   const discordTemplate = normalizeDiscordTemplate(

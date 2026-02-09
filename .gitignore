@@ -21,6 +21,10 @@ prisma/tmp.sql
 *.log
 *.pid
 logs
+!app/logs/
+!app/logs/**
+!app/api/logs/
+!app/api/logs/**
 coverage
 .vercel
 .idea
