@@ -39,50 +39,6 @@ docker compose up -d
 
 Flarewatcher runs on `http://localhost:3000`.
 
-## Kubernetes / k3s (SQLite + PVC)
-
-If you mount a PVC at `/app/data`, ensure the pod sets `fsGroup` so the non-root app user can write the SQLite file.
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: flarewatcher
-  namespace: flarewatcher
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: flarewatcher
-  template:
-    metadata:
-      labels:
-        app: flarewatcher
-    spec:
-      securityContext:
-        fsGroup: 1001
-        fsGroupChangePolicy: OnRootMismatch
-      containers:
-        - name: flarewatcher
-          image: aleksanderurbaniak/flarewatcher:latest
-          env:
-            - name: DATABASE_URL
-              value: file:/app/data/flarewatcher.db
-          securityContext:
-            runAsUser: 1001
-            runAsGroup: 1001
-            runAsNonRoot: true
-          volumeMounts:
-            - name: flarewatcher-data
-              mountPath: /app/data
-      volumes:
-        - name: flarewatcher-data
-          persistentVolumeClaim:
-            claimName: flarewatcher-data
-```
-
-If your storage class does not honor `fsGroup`, add an init container that `chown`s the mounted volume.
-
 ## Local Development (Non-Docker)
 
 Requirements:
@@ -111,61 +67,6 @@ Useful scripts:
 
 - `npm run version:resolve` -> prints `MAJOR.MINOR.PATCH`
 - `npm run version:resolve:tag` -> prints `vMAJOR.MINOR.PATCH`
-
-## Release Process
-
-- On push to `main`, CI calculates the next patch tag from the latest `v*` tag
-- First release is `v1.0.0`, then `v1.0.1`, `v1.0.2`, ...
-- CI creates/pushes the git tag and creates a GitHub Release for that tag
-
-## Docker Publish (GitHub Actions)
-
-Workflow: `.github/workflows/docker-publish.yml`
-
-Triggers:
-
-- push to `main`
-
-Published tags:
-
-- `latest` on `main`
-- exact semver tag from CI (example: `v1.0.0`)
-
-Configure repository variables:
-
-- `DOCKER_REGISTRY`
-- `DOCKER_NAMESPACE`
-- `DOCKER_IMAGE_NAME`
-
-Default values when variables are not set:
-
-- `DOCKER_REGISTRY=docker.io`
-- `DOCKER_NAMESPACE=aleksanderurbaniak`
-- `DOCKER_IMAGE_NAME=flarewatcher`
-
-Configure repository secrets:
-
-- `DOCKER_USERNAME`
-- `DOCKER_PASSWORD`
-
-Target image path:
-
-- `<REGISTRY>/<NAMESPACE>/<IMAGE_NAME>`
-
-## Security
-
-Container hardening:
-
-- multi-stage Docker build
-- production dependency pruning (`npm prune --omit=dev`)
-- non-root runtime user
-- OS package security updates in runtime layer
-- package manager binaries removed from runtime image (`npm`, `npx`, `corepack`)
-
-CI security gates:
-
-- `npm audit` for production dependencies; build fails on fixable HIGH/CRITICAL issues
-- Trivy image scan with `HIGH,CRITICAL`, `ignore-unfixed=true`
 
 ## Environment Variables
 
