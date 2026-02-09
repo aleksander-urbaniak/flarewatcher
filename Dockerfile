@@ -23,6 +23,8 @@ RUN npm prune --omit=dev && npm cache clean --force
 
 FROM node:20-slim AS runner
 ARG APP_VERSION
+ARG APP_UID=1001
+ARG APP_GID=1001
 WORKDIR /app
 ENV NODE_ENV=production
 ENV DATABASE_URL="file:/app/data/flarewatcher.db"
@@ -32,9 +34,10 @@ LABEL org.opencontainers.image.version=${APP_VERSION}
 
 RUN apt-get update \
   && apt-get upgrade -y \
+  && apt-get install -y --no-install-recommends openssl \
   && rm -rf /var/lib/apt/lists/*
 
-RUN groupadd --system nodejs && useradd --system --gid nodejs nextjs
+RUN groupadd --gid ${APP_GID} nodejs && useradd --uid ${APP_UID} --gid ${APP_GID} --create-home nextjs
 RUN mkdir -p /app/data
 
 COPY --from=builder /app/next.config.js ./next.config.js

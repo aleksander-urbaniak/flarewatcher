@@ -39,6 +39,50 @@ docker compose up -d
 
 Flarewatcher runs on `http://localhost:3000`.
 
+## Kubernetes / k3s (SQLite + PVC)
+
+If you mount a PVC at `/app/data`, ensure the pod sets `fsGroup` so the non-root app user can write the SQLite file.
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flarewatcher
+  namespace: flarewatcher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flarewatcher
+  template:
+    metadata:
+      labels:
+        app: flarewatcher
+    spec:
+      securityContext:
+        fsGroup: 1001
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: flarewatcher
+          image: aleksanderurbaniak/flarewatcher:latest
+          env:
+            - name: DATABASE_URL
+              value: file:/app/data/flarewatcher.db
+          securityContext:
+            runAsUser: 1001
+            runAsGroup: 1001
+            runAsNonRoot: true
+          volumeMounts:
+            - name: flarewatcher-data
+              mountPath: /app/data
+      volumes:
+        - name: flarewatcher-data
+          persistentVolumeClaim:
+            claimName: flarewatcher-data
+```
+
+If your storage class does not honor `fsGroup`, add an init container that `chown`s the mounted volume.
+
 ## Local Development (Non-Docker)
 
 Requirements:
@@ -126,7 +170,12 @@ CI security gates:
 ## Environment Variables
 
 ```bash
+# local dev
 DATABASE_URL=file:./prisma/flarewatcher.db
+
+# Docker / Kubernetes
+# DATABASE_URL=file:/app/data/flarewatcher.db
+
 SECRET_ENCRYPTION_KEY=replace-with-a-long-random-secret
 ```
 
