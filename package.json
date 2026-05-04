@@ -18,7 +18,7 @@
   "dependencies": {
     "@prisma/client": "6.19.2",
     "bcryptjs": "^3.0.3",
-    "lucide-react": "^0.563.0",
+    "lucide-react": "^1.14.0",
     "next": "16.2.4",
     "nodemailer": "^8.0.5",
     "otplib": "^13.2.1",
