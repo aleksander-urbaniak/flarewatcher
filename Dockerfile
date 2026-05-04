@@ -1,4 +1,4 @@
-FROM node:20-slim AS base
+FROM node:25-slim AS base
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
@@ -21,7 +21,7 @@ COPY --from=builder /app/package-lock.json ./package-lock.json
 COPY --from=builder /app/node_modules ./node_modules
 RUN npm prune --omit=dev && npm cache clean --force
 
-FROM node:20-slim AS runner
+FROM node:25-slim AS runner
 ARG APP_VERSION
 ARG APP_UID=1001
 ARG APP_GID=1001
