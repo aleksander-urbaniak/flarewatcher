@@ -42,22 +42,6 @@ jobs:
           echo "value=$next_tag" >> "$GITHUB_OUTPUT"
           echo "Next tag: $next_tag"
 
-      - name: Create and push git tag
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag="${{ steps.app_version.outputs.value }}"
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          if git rev-parse "$tag" >/dev/null 2>&1; then
-            echo "Tag $tag already exists; skipping."
-          else
-            git tag -a "$tag" -m "Release $tag"
-            git push origin "$tag"
-          fi
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -79,3 +63,19 @@ jobs:
           tags: |
             aleksanderurbaniak/flarewatcher:latest
             aleksanderurbaniak/flarewatcher:${{ steps.app_version.outputs.value }}
+
+      - name: Create and push git tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.app_version.outputs.value }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists; skipping."
+          else
+            git tag -a "$tag" -m "Release $tag"
+            git push origin "$tag"
+          fi
