@@ -22,7 +22,7 @@
     "next": "16.2.4",
     "nodemailer": "^8.0.5",
     "otplib": "^13.2.1",
-    "prisma": "7.8.0",
+    "prisma": "6.19.2",
     "react": "19.2.6",
     "react-dom": "19.2.5",
     "react-markdown": "^10.1.0",
@@ -35,8 +35,8 @@
     "@types/nodemailer": "^7.0.9",
     "@types/react": "^19.2.11",
     "@types/react-dom": "^19.2.3",
-    "eslint": "10.3.0",
+    "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
-    "typescript": "6.0.3"
+    "typescript": "5.9.3"
   }
 }

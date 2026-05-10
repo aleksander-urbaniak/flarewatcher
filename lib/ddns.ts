@@ -1,5 +1,5 @@
-import type { CloudflareToken, UserSettings } from "@prisma/client";
-import type { Prisma } from "@prisma/client";
+import type { CloudflareToken, UserSettings } from "@prisma/client/index";
+import type { Prisma } from "@prisma/client/index";
 
 import { sendAlerts } from "@/lib/alerts";
 import { logAuditEvent } from "@/lib/audit";

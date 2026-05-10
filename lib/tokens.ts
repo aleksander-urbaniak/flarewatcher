@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client/index";
 import { prisma } from "@/lib/prisma";
 import { decryptSecret, encryptSecret, isEncryptedSecret } from "@/lib/secrets";
 
