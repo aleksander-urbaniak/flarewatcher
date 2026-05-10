@@ -880,19 +880,49 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
         return;
       }
 
-      for (const item of monitoredRecords) {
-        const record = dnsRecords[item.zoneId]?.find(
-          (entry) => entry.id === item.recordId
-        );
-        if (record && record.content !== ip) {
-          const zone = zones.find((entry) => entry.id === item.zoneId);
-          if (zone) {
-            await updateRecord(item.zoneId, record, ip, zone.tokenId, "auto");
-          }
+      const response = await fetch("/api/dns/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = (await response.json()) as {
+        status: string;
+        recordsUpdated?: number;
+        recordsFailed?: number;
+        message?: string;
+      };
+
+      if (!response.ok || data.status === "error") {
+        throw new Error(data.message || "Auto-update sync failed.");
+      }
+
+      if ((data.recordsUpdated ?? 0) > 0 || (data.recordsFailed ?? 0) > 0) {
+        await refreshData();
+        await loadAuditLog();
+        if ((data.recordsUpdated ?? 0) > 0) {
+          addLog(`${data.recordsUpdated} monitored record(s) updated.`, "success");
+          addNotification(
+            "Auto-update completed",
+            `${data.recordsUpdated} record(s) now point to ${ip}.`,
+            "success"
+          );
+        }
+        if ((data.recordsFailed ?? 0) > 0) {
+          addLog(`${data.recordsFailed} monitored record(s) failed to update.`, "error");
+          addNotification(
+            "Auto-update issues",
+            `${data.recordsFailed} record(s) could not be updated.`,
+            "warning"
+          );
         }
       }
     },
-    [dnsRecords, monitoredRecords, updateRecord, zones]
+    [
+      addLog,
+      addNotification,
+      loadAuditLog,
+      monitoredRecords.length,
+      refreshData,
+    ]
   );
 
   const toggleMonitor = async (zoneId: string, recordId: string) => {
