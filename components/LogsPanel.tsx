@@ -220,6 +220,50 @@ export default function LogsPanel() {
     }
   }, []);
 
+  const applyIpState = useCallback(
+    (current: string | null | undefined, previous: string | null | undefined) => {
+      const normalizedCurrent = current?.trim() || null;
+      const normalizedPrevious = previous?.trim() || null;
+      const safePrevious =
+        normalizedCurrent &&
+        normalizedPrevious &&
+        normalizedCurrent === normalizedPrevious
+          ? null
+          : normalizedPrevious;
+
+      setCurrentIp(normalizedCurrent);
+      setPreviousIp(safePrevious);
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem(
+          IP_STORAGE_KEY,
+          JSON.stringify({
+            current: normalizedCurrent,
+            previous: safePrevious,
+          })
+        );
+      }
+    },
+    []
+  );
+
+  const loadPublicIp = useCallback(async () => {
+    try {
+      const response = await fetch("/api/ip", { cache: "no-store" });
+      if (!response.ok) {
+        return;
+      }
+      const data = (await response.json()) as {
+        status: string;
+        ip?: string;
+        previousIp?: string | null;
+      };
+      if (data.status === "success") {
+        applyIpState(data.ip ?? null, data.previousIp ?? null);
+      }
+    } catch {}
+  }, [applyIpState]);
+
   const loadAuditLog = useCallback(async () => {
     setLoadingAudit(true);
     try {
@@ -255,7 +299,8 @@ export default function LogsPanel() {
     setLogs(loadPersistedLogs());
     void loadAuditLog();
     void loadUserAudit();
-  }, [loadAuditLog, loadUserAudit]);
+    void loadPublicIp();
+  }, [loadAuditLog, loadPublicIp, loadUserAudit]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -270,14 +315,32 @@ export default function LogsPanel() {
         };
         const current = parsed.current?.trim() || null;
         const previous = parsed.previous?.trim() || null;
-        setCurrentIp(current);
-        setPreviousIp(current && previous && current === previous ? null : previous);
+        applyIpState(current, previous);
       }
     } catch {
       setCurrentIp(null);
       setPreviousIp(null);
     }
-  }, []);
+  }, [applyIpState]);
+
+  useEffect(() => {
+    const latestIpUpdate = auditLog.find((entry) => {
+      return (
+        entry.status.toLowerCase() === "success" &&
+        isLikelyIp(normalizeIp(entry.content))
+      );
+    });
+    if (!latestIpUpdate) {
+      return;
+    }
+
+    const previous = isLikelyIp(normalizeIp(latestIpUpdate.previousContent))
+      ? latestIpUpdate.previousContent
+      : null;
+    if (!currentIp || currentIp === latestIpUpdate.content) {
+      applyIpState(latestIpUpdate.content, previous);
+    }
+  }, [applyIpState, auditLog, currentIp]);
 
   const measurePerPage = useCallback(
     (listEl: HTMLDivElement | null, fallbackCardHeight: number) => {

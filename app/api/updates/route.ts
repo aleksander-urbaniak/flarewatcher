@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { requireSessionUser } from "@/lib/auth";
+import { getUserDnsUpdateWhere } from "@/lib/updateAccess";
 
 export const runtime = "nodejs";
 
@@ -23,16 +24,20 @@ export async function GET(request: Request) {
       MAX_TAKE
     );
 
+    const userUpdateWhere = await getUserDnsUpdateWhere(user.id, user.email);
     const where = (() => {
-      const actorFilter = { actor: user.email };
       if (!hasMonths) {
-        return actorFilter;
+        return userUpdateWhere;
       }
       const since = new Date();
       since.setMonth(since.getMonth() - Math.floor(monthsParam));
       return {
-        ...actorFilter,
-        createdAt: { gte: since },
+        AND: [
+          userUpdateWhere,
+          {
+            createdAt: { gte: since },
+          },
+        ],
       };
     })();
 
@@ -56,8 +61,9 @@ export async function GET(request: Request) {
 export async function DELETE() {
   try {
     const user = await requireSessionUser();
+    const userUpdateWhere = await getUserDnsUpdateWhere(user.id, user.email);
     const result = await prisma.dnsUpdate.deleteMany({
-      where: { actor: user.email },
+      where: userUpdateWhere,
     });
     return NextResponse.json({
       status: "success",

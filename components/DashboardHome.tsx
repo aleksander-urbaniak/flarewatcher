@@ -51,17 +51,25 @@ const tiles: Tile[] = [
 
 export default function DashboardHome() {
   const [currentIp, setCurrentIp] = useState<string | null>(null);
+  const [previousIp, setPreviousIp] = useState<string | null>(null);
   const loadIp = useCallback(async () => {
     try {
       const response = await fetch("/api/ip", { cache: "no-store" });
-      const data = (await response.json()) as { status: string; ip?: string };
+      const data = (await response.json()) as {
+        status: string;
+        ip?: string;
+        previousIp?: string | null;
+      };
       if (data.status === "success") {
         setCurrentIp(data.ip ?? null);
+        setPreviousIp(data.previousIp ?? null);
       } else {
         setCurrentIp(null);
+        setPreviousIp(null);
       }
     } catch {
       setCurrentIp(null);
+      setPreviousIp(null);
     }
   }, []);
 
@@ -144,7 +152,9 @@ export default function DashboardHome() {
                 <div className="public-ip-value">
                   <span className="ip-status" aria-hidden="true" />
                   <strong>{currentIp ?? "Detecting..."}</strong>
-                  <span className="ip-tooltip">Previous IP: --</span>
+                  <span className="ip-tooltip">
+                    Previous IP: {previousIp ?? "--"}
+                  </span>
                 </div>
               </div>
             </div>
