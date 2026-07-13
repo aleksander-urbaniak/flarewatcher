@@ -19,7 +19,7 @@
     "security:audit": "node scripts/check-npm-audit-fixable.cjs"
   },
   "dependencies": {
-    "@prisma/client": "6.19.3",
+    "@prisma/client": "7.8.0",
     "bcryptjs": "^3.0.3",
     "lucide-react": "^1.14.0",
     "next": "16.2.10",
