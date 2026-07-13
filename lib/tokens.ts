@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client/index";
 import { prisma } from "@/lib/prisma";
-import { decryptSecret, encryptSecret, isEncryptedSecret } from "@/lib/secrets";
+import { decryptSecret, encryptSecret, isEncryptedSecret, isLegacyEncryptedSecret } from "@/lib/secrets";
 
 export const REQUIRED_PERMISSIONS = ["Zone:Read", "Zone:DNS:Edit"] as const;
 
@@ -96,7 +96,7 @@ export async function getUserTokenById(userId: string, tokenId: string) {
     throw new Error("API_TOKEN_MISSING");
   }
 
-  if (!isEncryptedSecret(token.token)) {
+  if (!isEncryptedSecret(token.token) || isLegacyEncryptedSecret(token.token)) {
     const encrypted = encryptSecret(decrypted);
     if (encrypted && encrypted !== token.token) {
       await prisma.cloudflareToken.updateMany({
@@ -141,7 +141,7 @@ export async function getAllUserTokens(
 
   await Promise.allSettled(
     tokens
-      .filter((entry) => !isEncryptedSecret(entry.token))
+      .filter((entry) => !isEncryptedSecret(entry.token) || isLegacyEncryptedSecret(entry.token))
       .map(async (entry) => {
         const encrypted = encryptSecret(entry.token);
         if (encrypted && encrypted !== entry.token) {

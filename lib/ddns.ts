@@ -5,7 +5,7 @@ import { sendAlerts } from "@/lib/alerts";
 import { logAuditEvent } from "@/lib/audit";
 import { getPublicIp } from "@/lib/ip";
 import { prisma } from "@/lib/prisma";
-import { decryptSecret, encryptSecret, isEncryptedSecret } from "@/lib/secrets";
+import { decryptSecret, encryptSecret, isEncryptedSecret, isLegacyEncryptedSecret } from "@/lib/secrets";
 
 type MonitoredRecord = {
   zoneId: string;
@@ -58,6 +58,7 @@ const schedulerState = globalThis as typeof globalThis & {
     running: boolean;
     timer?: NodeJS.Timeout;
     lastCheckedByUser: Map<string, number>;
+    ipFetchErrorNotifiedAt: Map<string, number>;
   };
 };
 
@@ -66,6 +67,7 @@ const getSchedulerState = () => {
     started: false,
     running: false,
     lastCheckedByUser: new Map<string, number>(),
+    ipFetchErrorNotifiedAt: new Map<string, number>(),
   };
   return schedulerState.flarewatcherDdnsScheduler;
 };
@@ -95,7 +97,7 @@ const getTokenValue = async (token: CloudflareToken) => {
     return null;
   }
 
-  if (!isEncryptedSecret(token.token)) {
+  if (!isEncryptedSecret(token.token) || isLegacyEncryptedSecret(token.token)) {
     const encrypted = encryptSecret(decrypted);
     if (encrypted && encrypted !== token.token) {
       await prisma.cloudflareToken.update({
@@ -362,7 +364,6 @@ export async function recordIpChange(
 export async function syncDdnsRecords(
   options: SyncUserOptions = {}
 ): Promise<DdnsSyncResult> {
-  const currentIp = await getPublicIp();
   const users = await prisma.user.findMany({
     where: options.userId ? { id: options.userId } : undefined,
     include: {
@@ -370,6 +371,39 @@ export async function syncDdnsRecords(
       tokens: true,
     },
   });
+
+  let currentIp: string;
+  try {
+    currentIp = await getPublicIp();
+  } catch {
+    const state = getSchedulerState();
+    const now = Date.now();
+    const cooldownMs = 30 * 60_000;
+    for (const user of users) {
+      const monitoredRecords = user.settings
+        ? parseMonitoredRecords(user.settings.monitoredRecords)
+        : [];
+      if (monitoredRecords.length === 0) continue;
+      if (user.settings?.notifyOnFailure) {
+        const lastNotified = state.ipFetchErrorNotifiedAt.get(user.id) ?? 0;
+        if (now - lastNotified >= cooldownMs) {
+          state.ipFetchErrorNotifiedAt.set(user.id, now);
+          await sendAlerts(user.id, {
+            title: "Flarewatcher: Unable to fetch public IP",
+            body: "Could not determine current public IP address. DNS records were not updated.",
+          });
+        }
+      }
+    }
+    return {
+      currentIp: "",
+      usersChecked: 0,
+      recordsChecked: 0,
+      recordsUpdated: 0,
+      recordsFailed: 0,
+      results: [],
+    };
+  }
 
   const result: DdnsSyncResult = {
     currentIp,

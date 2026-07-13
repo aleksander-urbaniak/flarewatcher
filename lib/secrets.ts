@@ -1,22 +1,28 @@
 import crypto from "crypto";
 
-const ENCRYPTED_PREFIX = "enc:v1:";
+// enc:v1: = SHA-256 derived key (legacy, v1.0.x)
+// enc:v2: = scrypt derived key (current, v1.1.x+)
+const ENCRYPTED_PREFIX_V1 = "enc:v1:";
+const ENCRYPTED_PREFIX_V2 = "enc:v2:";
 const MIN_KEY_LENGTH = 32;
 // Fixed, app-specific salt: SECRET_ENCRYPTION_KEY is the only secret input we
 // have, so the salt's job is domain separation, not per-install randomness.
 const KDF_SALT = "flarewatcher:secret-key:v1";
 
-let cachedKey: Buffer | null | undefined;
+let cachedScryptKey: Buffer | null | undefined;
+let cachedLegacyKey: Buffer | null | undefined;
+
+const getRaw = () => process.env.SECRET_ENCRYPTION_KEY?.trim();
 
 const getSecretKey = () => {
-  if (cachedKey !== undefined) {
-    return cachedKey;
+  if (cachedScryptKey !== undefined) {
+    return cachedScryptKey;
   }
 
-  const raw = process.env.SECRET_ENCRYPTION_KEY?.trim();
+  const raw = getRaw();
   if (!raw) {
-    cachedKey = null;
-    return cachedKey;
+    cachedScryptKey = null;
+    return cachedScryptKey;
   }
   if (raw.length < MIN_KEY_LENGTH) {
     throw new Error(
@@ -25,8 +31,22 @@ const getSecretKey = () => {
   }
 
   // scrypt gives the passphrase a real work factor, unlike a bare hash.
-  cachedKey = crypto.scryptSync(raw, KDF_SALT, 32);
-  return cachedKey;
+  cachedScryptKey = crypto.scryptSync(raw, KDF_SALT, 32);
+  return cachedScryptKey;
+};
+
+// Legacy SHA-256 key used by v1.0.x — needed to decrypt tokens encrypted before v1.1.0.
+const getLegacyKey = () => {
+  if (cachedLegacyKey !== undefined) {
+    return cachedLegacyKey;
+  }
+  const raw = getRaw();
+  if (!raw) {
+    cachedLegacyKey = null;
+    return cachedLegacyKey;
+  }
+  cachedLegacyKey = crypto.createHash("sha256").update(raw).digest();
+  return cachedLegacyKey;
 };
 
 const ensureKeyForEncryption = () => {
@@ -38,7 +58,15 @@ const ensureKeyForEncryption = () => {
 };
 
 export const isEncryptedSecret = (value: string | null | undefined) =>
-  Boolean(value && value.startsWith(ENCRYPTED_PREFIX));
+  Boolean(
+    value &&
+      (value.startsWith(ENCRYPTED_PREFIX_V1) ||
+        value.startsWith(ENCRYPTED_PREFIX_V2))
+  );
+
+// True only for tokens encrypted with the legacy SHA-256 scheme (needs migration).
+export const isLegacyEncryptedSecret = (value: string | null | undefined) =>
+  Boolean(value && value.startsWith(ENCRYPTED_PREFIX_V1));
 
 export const encryptSecret = (value: string | null | undefined) => {
   if (value === null || value === undefined || value.length === 0) {
@@ -61,23 +89,27 @@ export const encryptSecret = (value: string | null | undefined) => {
   const payload = `${iv.toString("base64url")}.${authTag.toString(
     "base64url"
   )}.${ciphertext.toString("base64url")}`;
-  return `${ENCRYPTED_PREFIX}${payload}`;
+  return `${ENCRYPTED_PREFIX_V2}${payload}`;
 };
 
 export const decryptSecret = (value: string | null | undefined) => {
   if (value === null || value === undefined || value.length === 0) {
     return null;
   }
-  if (!isEncryptedSecret(value)) {
+
+  const isV1 = value.startsWith(ENCRYPTED_PREFIX_V1);
+  const isV2 = value.startsWith(ENCRYPTED_PREFIX_V2);
+  if (!isV1 && !isV2) {
     return value;
   }
 
-  const key = getSecretKey();
+  const key = isV2 ? getSecretKey() : getLegacyKey();
   if (!key) {
     throw new Error("SECRET_ENCRYPTION_KEY_MISSING");
   }
 
-  const payload = value.slice(ENCRYPTED_PREFIX.length);
+  const prefix = isV2 ? ENCRYPTED_PREFIX_V2 : ENCRYPTED_PREFIX_V1;
+  const payload = value.slice(prefix.length);
   const [ivEncoded, authTagEncoded, ciphertextEncoded] = payload.split(".");
   if (!ivEncoded || !authTagEncoded || !ciphertextEncoded) {
     throw new Error("SECRET_DECRYPTION_FAILED");

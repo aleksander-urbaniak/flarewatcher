@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { logAuditEvent } from "@/lib/audit";
-import { decryptSecret, encryptSecret, isEncryptedSecret } from "@/lib/secrets";
+import { decryptSecret, encryptSecret, isEncryptedSecret, isLegacyEncryptedSecret } from "@/lib/secrets";
 import { isValidDiscordWebhookUrl } from "@/lib/alerts";
 import { isValidCloudflareId } from "@/lib/cloudflareIds";
 
@@ -53,7 +53,7 @@ export async function GET() {
     if (
       settings?.smtpPass &&
       decodedSmtpPass &&
-      !isEncryptedSecret(settings.smtpPass)
+      (!isEncryptedSecret(settings.smtpPass) || isLegacyEncryptedSecret(settings.smtpPass))
     ) {
       const encrypted = encryptSecret(decodedSmtpPass);
       if (encrypted && encrypted !== settings.smtpPass) {
