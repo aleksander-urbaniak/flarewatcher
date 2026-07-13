@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSessionUser } from "@/lib/auth";
 import { getUserTokenById } from "@/lib/tokens";
 import { logAuditEvent } from "@/lib/audit";
+import { getUserDnsUpdateWhere } from "@/lib/updateAccess";
 
 export const runtime = "nodejs";
 
@@ -25,24 +26,22 @@ export async function POST(request: Request) {
       );
     }
 
-    const update = await prisma.dnsUpdate.findUnique({
-      where: { id: parsed.data.updateId },
+    const ownershipWhere = await getUserDnsUpdateWhere(user.id, user.email);
+    const update = await prisma.dnsUpdate.findFirst({
+      where: { id: parsed.data.updateId, ...ownershipWhere },
     });
 
-    if (!update?.tokenId || !update.previousContent) {
-      return NextResponse.json(
-        { status: "error", message: "Rollback not available for this update." },
-        { status: 400 }
-      );
-    }
-
-    const ownedByUser =
-      typeof update.actor === "string" &&
-      update.actor.trim().toLowerCase() === user.email.trim().toLowerCase();
-    if (!user.isAdmin && !ownedByUser) {
+    if (!update) {
       return NextResponse.json(
         { status: "error", message: "Update not found." },
         { status: 404 }
+      );
+    }
+
+    if (!update.tokenId || !update.previousContent) {
+      return NextResponse.json(
+        { status: "error", message: "Rollback not available for this update." },
+        { status: 400 }
       );
     }
 

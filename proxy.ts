@@ -29,13 +29,16 @@ const hasTrustedOrigin = (request: Request) => {
     }
   };
 
-  if (origin && !matches(origin)) {
-    return false;
+  if (origin) {
+    return matches(origin);
   }
-  if (!origin && referer && !matches(referer)) {
-    return false;
+  if (referer) {
+    return matches(referer);
   }
-  return true;
+  // Browsers always send Origin (or at least Referer) on cross-origin and
+  // same-origin mutating requests. A request with neither header is not a
+  // normal browser request, so it isn't trusted.
+  return false;
 };
 
 export function proxy(request: Request) {
@@ -44,6 +47,7 @@ export function proxy(request: Request) {
   const isApi = url.pathname.startsWith("/api/");
   const isAuth = url.pathname.startsWith("/api/auth/");
   const isTwoFactor = url.pathname.startsWith("/api/2fa/");
+  const isAlerts = url.pathname.startsWith("/api/alerts/");
   const isMutation = MUTATING_METHODS.has(request.method);
 
   if (isApi && isMutation && !hasTrustedOrigin(request)) {
@@ -56,6 +60,22 @@ export function proxy(request: Request) {
   if (isAuth || isTwoFactor) {
     const key = `auth:${ip}`;
     const limit = rateLimit(key, 60, 60_000);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { status: "error", message: "Too many requests. Try again shortly." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(limit.retryAfterSec),
+          },
+        }
+      );
+    }
+  }
+
+  if (isAlerts && isMutation) {
+    const key = `alerts:${ip}`;
+    const limit = rateLimit(key, 20, 60_000);
     if (!limit.allowed) {
       return NextResponse.json(
         { status: "error", message: "Too many requests. Try again shortly." },

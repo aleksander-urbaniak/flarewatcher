@@ -1,6 +1,6 @@
 {
   "name": "flarewatcher",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,18 +11,22 @@
     "prisma:generate": "prisma generate",
     "prisma:db": "prisma db push",
     "prisma:migrate": "prisma migrate deploy",
+    "version:patch": "npm version patch --no-git-tag-version",
+    "version:minor": "npm version minor --no-git-tag-version",
+    "version:major": "npm version major --no-git-tag-version",
     "version:resolve": "node scripts/resolve-version.cjs",
     "version:resolve:tag": "node scripts/resolve-version.cjs --with-v",
     "security:audit": "node scripts/check-npm-audit-fixable.cjs"
   },
   "dependencies": {
-    "@prisma/client": "6.19.2",
+    "@prisma/client": "6.19.3",
     "bcryptjs": "^3.0.3",
     "lucide-react": "^1.14.0",
-    "next": "16.2.6",
-    "nodemailer": "^9.0.1",
+    "next": "16.2.10",
+    "nodemailer": "^8.0.5",
     "otplib": "^13.2.1",
     "prisma": "6.19.3",
+    "qrcode": "^1.5.4",
     "react": "19.2.6",
     "react-dom": "19.2.5",
     "react-markdown": "^10.1.0",
@@ -33,6 +37,7 @@
   "devDependencies": {
     "@types/node": "^25.6.2",
     "@types/nodemailer": "^7.0.9",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.11",
     "@types/react-dom": "^19.2.3",
     "eslint": "9.39.4",

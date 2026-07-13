@@ -2,13 +2,20 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { requireSessionUser } from "@/lib/auth";
-import { sendTestAlert } from "@/lib/alerts";
+import { isValidDiscordWebhookUrl, sendTestAlert } from "@/lib/alerts";
 
 export const runtime = "nodejs";
 
 const schema = z.object({
   type: z.enum(["discord", "smtp"]),
-  discordWebhookUrl: z.string().url().optional().nullable(),
+  discordWebhookUrl: z
+    .string()
+    .url()
+    .refine((value) => isValidDiscordWebhookUrl(value), {
+      message: "Must be a discord.com webhook URL.",
+    })
+    .optional()
+    .nullable(),
   discordMarkdown: z.string().optional().nullable(),
   smtpHost: z.string().min(1).optional().nullable(),
   smtpPort: z.number().int().min(1).max(65535).optional().nullable(),

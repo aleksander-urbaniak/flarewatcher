@@ -1,12 +1,14 @@
 /** @type {import("next").NextConfig} */
 const packageVersion = require("./package.json").version;
 
+const isDev = process.env.NODE_ENV !== "production";
+
 const securityHeaders = [
   {
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https://api.qrserver.com",
       "font-src 'self' data:",

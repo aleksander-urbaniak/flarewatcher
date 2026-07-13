@@ -323,26 +323,6 @@
   pointer-events: none;
 }
 
-.login-blob {
-  position: absolute;
-  width: 45%;
-  height: 45%;
-  border-radius: 999px;
-  filter: blur(120px);
-  opacity: 0.4;
-}
-
-.login-blob-orange {
-  top: -10%;
-  left: -10%;
-  background: rgba(249, 115, 22, 0.35);
-}
-
-.login-blob-blue {
-  bottom: -10%;
-  right: -10%;
-  background: rgba(59, 130, 246, 0.28);
-}
 
 .login-grid {
   position: absolute;

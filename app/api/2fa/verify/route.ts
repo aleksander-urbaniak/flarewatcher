@@ -5,7 +5,13 @@ import { requireSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { verifyTwoFactorToken } from "@/lib/twoFactor";
 import { logAuditEvent } from "@/lib/audit";
-import { getClientIp, rateLimit } from "@/lib/rateLimit";
+import {
+  clearFailures,
+  getClientIp,
+  getLockout,
+  rateLimit,
+  recordFailure,
+} from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -27,6 +33,18 @@ export async function POST(request: Request) {
       );
     }
     const user = await requireSessionUser();
+    const identityKey = `2fa-verify:${user.id}`;
+    const lock = getLockout(identityKey);
+    if (lock.locked) {
+      return NextResponse.json(
+        { status: "error", message: "Too many invalid codes. Try again later." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(lock.retryAfterSec) },
+        }
+      );
+    }
+
     const body = await request.json();
     const parsed = schema.safeParse(body);
     if (!parsed.success) {
@@ -48,13 +66,19 @@ export async function POST(request: Request) {
       );
     }
 
-    const valid = verifyTwoFactorToken(parsed.data.token, current.twoFactorTempSecret);
-    if (!valid) {
+    const result = verifyTwoFactorToken(parsed.data.token, current.twoFactorTempSecret);
+    if (!result.valid) {
+      recordFailure(identityKey, {
+        maxAttempts: 5,
+        windowMs: 15 * 60 * 1000,
+        lockMs: 15 * 60 * 1000,
+      });
       return NextResponse.json(
         { status: "error", message: "Invalid code." },
         { status: 400 }
       );
     }
+    clearFailures(identityKey);
 
     await prisma.user.update({
       where: { id: user.id },
@@ -62,6 +86,7 @@ export async function POST(request: Request) {
         twoFactorEnabled: true,
         twoFactorSecret: current.twoFactorTempSecret,
         twoFactorTempSecret: null,
+        twoFactorLastStep: result.timeStep,
       },
     });
 

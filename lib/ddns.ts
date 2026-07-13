@@ -338,6 +338,27 @@ const syncRecord = async (
   };
 };
 
+// Atomically records an IP change. Returns true if the IP is genuinely new
+// (i.e. different from lastKnownIp), false if already recorded for this IP.
+// Creates an IpChangeEvent entry on the first detection of each new IP.
+export async function recordIpChange(
+  userId: string,
+  previousIp: string | undefined,
+  newIp: string
+): Promise<boolean> {
+  const updated = await prisma.userSettings.updateMany({
+    where: { userId, NOT: { lastKnownIp: newIp } },
+    data: { lastKnownIp: newIp },
+  });
+  if (updated.count === 0) {
+    return false;
+  }
+  await prisma.ipChangeEvent.create({
+    data: { userId, previousIp: previousIp ?? "", newIp },
+  });
+  return true;
+}
+
 export async function syncDdnsRecords(
   options: SyncUserOptions = {}
 ): Promise<DdnsSyncResult> {
@@ -412,14 +433,17 @@ export async function syncDdnsRecords(
       }
     }
 
-    if (updatedForUser > 0 && user.settings?.notifyOnIpChange) {
+    if (updatedForUser > 0) {
       const previousIp = Array.from(previousIps).find((ip) => ip !== currentIp);
-      await sendAlerts(user.id, {
-        title: "Flarewatcher IP change",
-        body: `Previous IP: ${previousIp ?? "-"}\nCurrent IP: ${currentIp}`,
-        previousIp,
-        currentIp,
-      });
+      const isNew = await recordIpChange(user.id, previousIp, currentIp);
+      if (isNew && user.settings?.notifyOnIpChange) {
+        await sendAlerts(user.id, {
+          title: "Flarewatcher IP change",
+          body: `Previous IP: ${previousIp ?? "-"}\nCurrent IP: ${currentIp}`,
+          previousIp,
+          currentIp,
+        });
+      }
     }
   }
 

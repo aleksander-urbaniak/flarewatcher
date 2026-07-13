@@ -76,7 +76,7 @@ type SettingsResponse = {
     smtpHost?: string | null;
     smtpPort?: number | null;
     smtpUser?: string | null;
-    smtpPass?: string | null;
+    smtpPassSet?: boolean;
     smtpFrom?: string | null;
     smtpTo?: string | null;
     smtpMessage?: string | null;
@@ -132,12 +132,10 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
     }
     return window.sessionStorage.getItem("flarewatcher:token-name") ?? "";
   });
-  const [tokenValue, setTokenValue] = useState(() => {
-    if (typeof window === "undefined") {
-      return "";
-    }
-    return window.sessionStorage.getItem("flarewatcher:token-value") ?? "";
-  });
+  // Not persisted to sessionStorage (unlike tokenName): this holds a raw
+  // Cloudflare API token, and a failed save shouldn't leave it sitting in
+  // storage indefinitely.
+  const [tokenValue, setTokenValue] = useState("");
   const [selectedRecords, setSelectedRecords] = useState<Set<string>>(new Set());
   const [discordWebhookUrl, setDiscordWebhookUrl] = useState("");
   const DEFAULT_DISCORD_MARKDOWN = DEFAULT_DISCORD_TEMPLATE;
@@ -147,11 +145,14 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
   const [smtpPort, setSmtpPort] = useState("");
   const [smtpUser, setSmtpUser] = useState("");
   const [smtpPass, setSmtpPass] = useState("");
+  const [smtpPassSet, setSmtpPassSet] = useState(false);
+  const [smtpPassDirty, setSmtpPassDirty] = useState(false);
   const [smtpFrom, setSmtpFrom] = useState("");
   const [smtpTo, setSmtpTo] = useState("");
   const [smtpMessage, setSmtpMessage] = useState(DEFAULT_SMTP_MESSAGE);
   const [notifyOnIpChange, setNotifyOnIpChange] = useState(true);
   const [notifyOnFailure, setNotifyOnFailure] = useState(true);
+  const [tokenActionBusy, setTokenActionBusy] = useState(false);
   const [editingTokenId, setEditingTokenId] = useState<string | null>(null);
   const [editTokenName, setEditTokenName] = useState("");
   const [editTokenValue, setEditTokenValue] = useState("");
@@ -192,13 +193,6 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
     }
     window.sessionStorage.setItem("flarewatcher:token-name", tokenName);
   }, [tokenName]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    window.sessionStorage.setItem("flarewatcher:token-value", tokenValue);
-  }, [tokenValue]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -442,7 +436,10 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
       setSmtpHost(settings.smtpHost ?? "");
       setSmtpPort(settings.smtpPort?.toString() ?? "");
       setSmtpUser(settings.smtpUser ?? "");
-      setSmtpPass(settings.smtpPass ?? "");
+      // The server never sends the decrypted password back; only whether one is stored.
+      setSmtpPass("");
+      setSmtpPassSet(Boolean(settings.smtpPassSet));
+      setSmtpPassDirty(false);
       setSmtpFrom(settings.smtpFrom ?? "");
       setSmtpTo(settings.smtpTo ?? "");
       setSmtpMessage(settings.smtpMessage ?? DEFAULT_SMTP_MESSAGE);
@@ -484,7 +481,16 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
         override?.smtpPort ??
         (smtpPort ? Number(smtpPort) || null : null),
       smtpUser: override?.smtpUser ?? (smtpUser || null),
-      smtpPass: override?.smtpPass ?? (smtpPass || null),
+      // undefined = "leave the stored password alone" (the server treats a
+      // missing key differently from an explicit null, which clears it).
+      // We never receive the real password back, so only send a new value
+      // when the operator actually typed one in this session.
+      smtpPass:
+        override?.smtpPass !== undefined
+          ? override.smtpPass
+          : smtpPassDirty
+            ? smtpPass || null
+            : undefined,
       smtpFrom: override?.smtpFrom ?? (smtpFrom || null),
       smtpTo: override?.smtpTo ?? (smtpTo || null),
       smtpMessage: override?.smtpMessage ?? (smtpMessage || null),
@@ -526,6 +532,7 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
     smtpHost,
     smtpMessage,
     smtpPass,
+    smtpPassDirty,
     smtpPort,
     smtpTo,
     smtpUser,
@@ -540,7 +547,7 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
       smtpHost: smtpHost || null,
       smtpPort: smtpPort ? Number(smtpPort) || null : null,
       smtpUser: smtpUser || null,
-      smtpPass: smtpPass || null,
+      smtpPass: smtpPassDirty ? smtpPass || null : undefined,
       smtpFrom: smtpFrom || null,
       smtpTo: smtpTo || null,
       smtpMessage: smtpMessage || null,
@@ -557,6 +564,7 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
     smtpFrom,
     smtpHost,
     smtpMessage,
+    smtpPassDirty,
     smtpPass,
     smtpPort,
     smtpTo,
@@ -592,58 +600,74 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
   }, []);
 
   const addToken = async () => {
+    if (tokenActionBusy) {
+      return;
+    }
     if (!tokenName.trim() || !tokenValue.trim()) {
       addLog("Token name and value are required.", "error");
       addNotification("Token missing", "Name and token are required.", "error");
       return;
     }
-    const response = await fetch("/api/tokens", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: tokenName, token: tokenValue }),
-    });
-    const data = (await response.json()) as {
-      status: string;
-      message?: string;
-      token?: TokenItem;
-    };
-    if (!response.ok || data.status !== "success") {
-      addLog(data.message || "Failed to save token.", "error");
-      addNotification("Token save failed", data.message, "error");
-      return;
+    setTokenActionBusy(true);
+    try {
+      const response = await fetch("/api/tokens", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: tokenName, token: tokenValue }),
+      });
+      const data = (await response.json()) as {
+        status: string;
+        message?: string;
+        token?: TokenItem;
+      };
+      if (!response.ok || data.status !== "success") {
+        addLog(data.message || "Failed to save token.", "error");
+        addNotification("Token save failed", data.message, "error");
+        return;
+      }
+      setTokenName("");
+      setTokenValue("");
+      await loadTokens();
+      if (data.token?.missingScopes && data.token.missingScopes.length > 0) {
+        addLog(
+          `Token saved with missing scopes: ${data.token.missingScopes.join(", ")}.`,
+          "error"
+        );
+        addNotification(
+          "Token saved with warnings",
+          data.token.missingScopes.join(", "),
+          "warning"
+        );
+      } else {
+        addLog("Token saved.", "success");
+        addNotification("Token saved", "Cloudflare token stored.", "success");
+      }
+      await refreshData();
+    } finally {
+      setTokenActionBusy(false);
     }
-    setTokenName("");
-    setTokenValue("");
-    await loadTokens();
-    if (data.token?.missingScopes && data.token.missingScopes.length > 0) {
-      addLog(
-        `Token saved with missing scopes: ${data.token.missingScopes.join(", ")}.`,
-        "error"
-      );
-      addNotification(
-        "Token saved with warnings",
-        data.token.missingScopes.join(", "),
-        "warning"
-      );
-    } else {
-      addLog("Token saved.", "success");
-      addNotification("Token saved", "Cloudflare token stored.", "success");
-    }
-    await refreshData();
   };
 
   const removeToken = async (tokenId: string) => {
-    const response = await fetch(`/api/tokens?tokenId=${encodeURIComponent(tokenId)}`, {
-      method: "DELETE",
-    });
-    if (!response.ok) {
-      addLog("Failed to remove token.", "error");
-      addNotification("Token remove failed", "Unable to remove token.", "error");
+    if (tokenActionBusy) {
       return;
     }
-    await loadTokens();
-    await refreshData();
-    addNotification("Token removed", "Cloudflare token deleted.", "info");
+    setTokenActionBusy(true);
+    try {
+      const response = await fetch(`/api/tokens?tokenId=${encodeURIComponent(tokenId)}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        addLog("Failed to remove token.", "error");
+        addNotification("Token remove failed", "Unable to remove token.", "error");
+        return;
+      }
+      await loadTokens();
+      await refreshData();
+      addNotification("Token removed", "Cloudflare token deleted.", "info");
+    } finally {
+      setTokenActionBusy(false);
+    }
   };
 
   const startEditToken = (token: TokenItem) => {
@@ -659,6 +683,9 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
   };
 
   const saveTokenEdit = async (tokenId: string) => {
+    if (tokenActionBusy) {
+      return;
+    }
     if (!editTokenName.trim()) {
       addLog("Token label is required.", "error");
       addNotification("Token update failed", "Token label is required.", "error");
@@ -671,49 +698,62 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
     if (editTokenValue.trim()) {
       payload.token = editTokenValue.trim();
     }
-    const response = await fetch("/api/tokens", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = (await response.json()) as { status: string; message?: string };
-    if (!response.ok || data.status !== "success") {
-      addLog(data.message || "Failed to update token.", "error");
-      addNotification("Token update failed", data.message, "error");
-      return;
+    setTokenActionBusy(true);
+    try {
+      const response = await fetch("/api/tokens", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await response.json()) as { status: string; message?: string };
+      if (!response.ok || data.status !== "success") {
+        addLog(data.message || "Failed to update token.", "error");
+        addNotification("Token update failed", data.message, "error");
+        return;
+      }
+      addLog("Token updated.", "success");
+      addNotification("Token updated", "Token settings saved.", "success");
+      cancelEditToken();
+      await loadTokens();
+      await refreshData();
+    } finally {
+      setTokenActionBusy(false);
     }
-    addLog("Token updated.", "success");
-    addNotification("Token updated", "Token settings saved.", "success");
-    cancelEditToken();
-    await loadTokens();
-    await refreshData();
   };
   const verifyTokenStatus = async (tokenId: string) => {
-    const response = await fetch(`/api/tokens?tokenId=${encodeURIComponent(tokenId)}`, {
-      method: "PATCH",
-    });
-    const data = (await response.json()) as {
-      status: string;
-      message?: string;
-      token?: TokenItem;
-    };
-    if (!response.ok || data.status !== "success") {
-      addLog(data.message || "Token verification failed.", "error");
-      addNotification("Token verification failed", data.message, "error");
+    if (tokenActionBusy) {
       return;
     }
-    await loadTokens();
-    await refreshData();
-    if (data.token?.missingScopes && data.token.missingScopes.length > 0) {
-      addLog(`Token missing scopes: ${data.token.missingScopes.join(", ")}.`, "error");
-      addNotification(
-        "Token missing scopes",
-        data.token.missingScopes.join(", "),
-        "warning"
-      );
-    } else {
-      addLog("Token scopes verified.", "success");
-      addNotification("Token verified", "Scopes look good.", "success");
+    setTokenActionBusy(true);
+    try {
+      const response = await fetch(`/api/tokens?tokenId=${encodeURIComponent(tokenId)}`, {
+        method: "PATCH",
+      });
+      const data = (await response.json()) as {
+        status: string;
+        message?: string;
+        token?: TokenItem;
+      };
+      if (!response.ok || data.status !== "success") {
+        addLog(data.message || "Token verification failed.", "error");
+        addNotification("Token verification failed", data.message, "error");
+        return;
+      }
+      await loadTokens();
+      await refreshData();
+      if (data.token?.missingScopes && data.token.missingScopes.length > 0) {
+        addLog(`Token missing scopes: ${data.token.missingScopes.join(", ")}.`, "error");
+        addNotification(
+          "Token missing scopes",
+          data.token.missingScopes.join(", "),
+          "warning"
+        );
+      } else {
+        addLog("Token scopes verified.", "success");
+        addNotification("Token verified", "Scopes look good.", "success");
+      }
+    } finally {
+      setTokenActionBusy(false);
     }
   };
 
@@ -1437,6 +1477,7 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
             zoneLastRun={zoneLastRun}
             rollbackUpdates={rollbackUpdates}
             onRollbackRecord={rollbackRecord}
+            busy={status !== "idle"}
           />
         ) : null}
 
@@ -1447,6 +1488,7 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
                 tokenName={tokenName}
                 tokenValue={tokenValue}
                 status={status}
+                busy={tokenActionBusy}
                 onTokenNameChange={setTokenName}
                 onTokenValueChange={setTokenValue}
                 onSync={syncCloudflare}
@@ -1459,6 +1501,7 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
                 editingTokenId={editingTokenId}
                 editTokenName={editTokenName}
                 editTokenValue={editTokenValue}
+                busy={tokenActionBusy}
                 onStartEdit={startEditToken}
                 onCancelEdit={cancelEditToken}
                 onSaveEdit={saveTokenEdit}
@@ -1485,6 +1528,7 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
             smtpPort={smtpPort}
             smtpUser={smtpUser}
             smtpPass={smtpPass}
+            smtpPassSet={smtpPassSet}
             smtpFrom={smtpFrom}
             smtpTo={smtpTo}
             smtpMessage={smtpMessage}
@@ -1502,7 +1546,10 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
             onSmtpHost={setSmtpHost}
             onSmtpPort={setSmtpPort}
             onSmtpUser={setSmtpUser}
-            onSmtpPass={setSmtpPass}
+            onSmtpPass={(value) => {
+              setSmtpPass(value);
+              setSmtpPassDirty(true);
+            }}
             onSmtpFrom={setSmtpFrom}
             onSmtpTo={setSmtpTo}
             onSmtpMessage={setSmtpMessage}

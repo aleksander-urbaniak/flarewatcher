@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ShieldCheck, ShieldOff } from "lucide-react";
+import QRCode from "qrcode";
 
 type SecurityPanelProps = {
   onLog: (message: string, type?: "info" | "success" | "error") => void;
@@ -38,10 +38,13 @@ export default function SecurityPanel({ onLog, onNotify }: SecurityPanelProps) {
   const [email, setEmail] = useState("");
   const [secret, setSecret] = useState<string | null>(null);
   const [otpauth, setOtpauth] = useState<string | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
   const loadUser = async () => {
     const response = await fetch("/api/auth/me", { cache: "no-store" });
@@ -83,6 +86,9 @@ export default function SecurityPanel({ onLog, onNotify }: SecurityPanelProps) {
       }
       setSecret(data.secret ?? null);
       setOtpauth(data.otpauth ?? null);
+      // Rendered locally via canvas: the TOTP secret never leaves the
+      // browser (unlike routing it through a third-party QR image service).
+      setQrDataUrl(data.otpauth ? await QRCode.toDataURL(data.otpauth) : null);
       setShowSetupModal(true);
       onLog("2FA setup started.", "info");
       onNotify("2FA setup", "Scan the QR code or enter the secret.", "info");
@@ -180,9 +186,58 @@ export default function SecurityPanel({ onLog, onNotify }: SecurityPanelProps) {
   const closeSetupModal = () => {
     setSecret(null);
     setOtpauth(null);
+    setQrDataUrl(null);
     setCode("");
     setShowSetupModal(false);
   };
+
+  useEffect(() => {
+    if (typeof document === "undefined" || !showSetupModal) {
+      return;
+    }
+
+    previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
+    window.requestAnimationFrame(() => {
+      modalRef.current?.querySelector<HTMLElement>("input, button")?.focus();
+    });
+
+    const getFocusable = () =>
+      Array.from(
+        modalRef.current?.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        ) ?? []
+      ).filter((el) => !el.hasAttribute("disabled"));
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeSetupModal();
+        return;
+      }
+      if (event.key !== "Tab") {
+        return;
+      }
+      const focusable = getFocusable();
+      if (focusable.length === 0) {
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocusedRef.current?.focus();
+    };
+  }, [showSetupModal]);
 
   return (
     <section className="panel dashboard-panel security-panel security-highlight">
@@ -236,6 +291,7 @@ export default function SecurityPanel({ onLog, onNotify }: SecurityPanelProps) {
                 onClick={closeSetupModal}
               >
                 <div
+                  ref={modalRef}
                   className="modal-card"
                   onClick={(event) => event.stopPropagation()}
                 >
@@ -253,13 +309,12 @@ export default function SecurityPanel({ onLog, onNotify }: SecurityPanelProps) {
                     </button>
                   </div>
                   <div className="modal-body security-setup">
-                    {otpauth ? (
+                    {qrDataUrl ? (
                       <div className="totp-qr">
                         <div className="totp-qr-frame">
-                          <Image
-                            src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-                              otpauth
-                            )}`}
+                          {/* eslint-disable-next-line @next/next/no-img-element -- locally generated data: URL, not a remote image */}
+                          <img
+                            src={qrDataUrl}
                             alt="Scan this QR code with your authenticator app"
                             width={200}
                             height={200}

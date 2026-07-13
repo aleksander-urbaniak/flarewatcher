@@ -1,19 +1,37 @@
 import crypto from "crypto";
 
 const ENCRYPTED_PREFIX = "enc:v1:";
+const MIN_KEY_LENGTH = 32;
+// Fixed, app-specific salt: SECRET_ENCRYPTION_KEY is the only secret input we
+// have, so the salt's job is domain separation, not per-install randomness.
+const KDF_SALT = "flarewatcher:secret-key:v1";
+
+let cachedKey: Buffer | null | undefined;
 
 const getSecretKey = () => {
+  if (cachedKey !== undefined) {
+    return cachedKey;
+  }
+
   const raw = process.env.SECRET_ENCRYPTION_KEY?.trim();
   if (!raw) {
-    return null;
+    cachedKey = null;
+    return cachedKey;
   }
-  // Derive a stable 32-byte key from the configured secret.
-  return crypto.createHash("sha256").update(raw).digest();
+  if (raw.length < MIN_KEY_LENGTH) {
+    throw new Error(
+      `SECRET_ENCRYPTION_KEY_TOO_SHORT: must be at least ${MIN_KEY_LENGTH} characters`
+    );
+  }
+
+  // scrypt gives the passphrase a real work factor, unlike a bare hash.
+  cachedKey = crypto.scryptSync(raw, KDF_SALT, 32);
+  return cachedKey;
 };
 
 const ensureKeyForEncryption = () => {
   const key = getSecretKey();
-  if (!key && process.env.NODE_ENV === "production") {
+  if (!key) {
     throw new Error("SECRET_ENCRYPTION_KEY_MISSING");
   }
   return key;
@@ -31,9 +49,6 @@ export const encryptSecret = (value: string | null | undefined) => {
   }
 
   const key = ensureKeyForEncryption();
-  if (!key) {
-    return value;
-  }
 
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);

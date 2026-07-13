@@ -25,6 +25,7 @@ logs
 !app/logs/**
 !app/api/logs/
 !app/api/logs/**
+tsconfig.tsbuildinfo
 coverage
 .vercel
 .idea

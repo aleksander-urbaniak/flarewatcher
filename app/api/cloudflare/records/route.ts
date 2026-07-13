@@ -1,9 +1,19 @@
 import { NextResponse } from "next/server";
 
 import { requireSessionUser } from "@/lib/auth";
-import { getUserTokenById } from "@/lib/tokens";
+import { fetchCloudflarePaginated, getUserTokenById } from "@/lib/tokens";
+import { isValidCloudflareId } from "@/lib/cloudflareIds";
 
 export const runtime = "nodejs";
+
+type CloudflareRecord = {
+  id: string;
+  name: string;
+  type: string;
+  content: string;
+  proxied?: boolean;
+  ttl: number;
+};
 
 export async function GET(request: Request) {
   try {
@@ -24,45 +34,31 @@ export async function GET(request: Request) {
         { status: 400 }
       );
     }
+    if (!isValidCloudflareId(zoneId) || !isValidCloudflareId(tokenId)) {
+      return NextResponse.json(
+        { status: "error", message: "Invalid zoneId or tokenId." },
+        { status: 400 }
+      );
+    }
 
     const token = await getUserTokenById(user.id, tokenId);
 
-    const response = await fetch(
-      `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records?per_page=100`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-      }
+    const page = await fetchCloudflarePaginated<CloudflareRecord>(
+      `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`,
+      token,
+      100
     );
 
-    const data = (await response.json()) as {
-      success?: boolean;
-      errors?: { message: string }[];
-      result?: {
-        id: string;
-        name: string;
-        type: string;
-        content: string;
-        proxied?: boolean;
-        ttl: number;
-      }[];
-    };
-
-    if (!data.success) {
+    if (!page.success) {
       return NextResponse.json(
-        {
-          status: "error",
-          message: data.errors?.[0]?.message || "Failed to fetch records.",
-        },
+        { status: "error", message: page.message },
         { status: 400 }
       );
     }
 
     return NextResponse.json({
       status: "success",
-      records: data.result ?? [],
+      records: page.result,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Request failed.";

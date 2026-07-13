@@ -248,8 +248,7 @@ export default function SetupForm() {
   return (
     <main className="login-shell">
       <div className="login-backdrop">
-        <div className="login-blob login-blob-orange" />
-        <div className="login-blob login-blob-blue" />
+
         <div className="login-grid" />
       </div>
       <section className="login-card setup-card">

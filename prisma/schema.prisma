@@ -40,6 +40,7 @@ model User {
   twoFactorEnabled Boolean @default(false)
   twoFactorSecret  String?
   twoFactorTempSecret String?
+  twoFactorLastStep Int?
   createdAt    DateTime  @default(now())
   sessions     Session[]
   settings     UserSettings?
@@ -78,6 +79,7 @@ model UserSettings {
   smtpEnabled      Boolean  @default(false)
   notifyOnIpChange Boolean  @default(true)
   notifyOnFailure  Boolean  @default(true)
+  lastKnownIp      String?
   updatedAt        DateTime @updatedAt
 }
 
@@ -92,6 +94,21 @@ model CloudflareToken {
   missingScopes Json @default("[]")
   lastCheckedAt DateTime @default(now())
   createdAt DateTime @default(now())
+}
+
+model SetupState {
+  id          Int      @id @default(1)
+  completedAt DateTime @default(now())
+}
+
+model IpChangeEvent {
+  id         String   @id @default(cuid())
+  userId     String
+  previousIp String
+  newIp      String
+  detectedAt DateTime @default(now())
+
+  @@index([userId, detectedAt])
 }
 
 model AuditEvent {

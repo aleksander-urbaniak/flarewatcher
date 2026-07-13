@@ -52,23 +52,35 @@ export async function POST(request: Request) {
       );
     }
 
-    const userCount = await prisma.user.count();
-    if (userCount > 0) {
-      return NextResponse.json(
-        { status: "error", message: "Setup already completed." },
-        { status: 403 }
-      );
-    }
-
     const passwordHash = await hashPassword(password);
-    const user = await prisma.user.create({
-      data: {
-        username,
-        email: email.toLowerCase(),
-        passwordHash,
-        isAdmin: true,
-      },
-    });
+
+    // SetupState.id is a hardcoded singleton row: the unique primary key
+    // guarantees only one concurrent request can ever win this insert, so
+    // two simultaneous registrations can't both create an admin account
+    // (a plain count-then-create has a race window between the two steps).
+    let user;
+    try {
+      user = await prisma.$transaction(async (tx) => {
+        await tx.setupState.create({ data: { id: 1 } });
+        return tx.user.create({
+          data: {
+            username,
+            email: email.toLowerCase(),
+            passwordHash,
+            isAdmin: true,
+          },
+        });
+      });
+    } catch (error) {
+      const code = (error as { code?: string } | null)?.code;
+      if (code === "P2002") {
+        return NextResponse.json(
+          { status: "error", message: "Setup already completed." },
+          { status: 403 }
+        );
+      }
+      throw error;
+    }
 
     const token = buildSessionToken();
     const expiresAt = getSessionExpiry();

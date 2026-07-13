@@ -96,6 +96,7 @@ type ZoneManagementPanelProps = {
   zoneLastRun: Map<string, UpdateRecord>;
   rollbackUpdates: Map<string, UpdateRecord>;
   onRollbackRecord: (zoneId: string, record: DnsRecord) => void | Promise<void>;
+  busy?: boolean;
 };
 
 export default function ZoneManagementPanel({
@@ -130,6 +131,7 @@ export default function ZoneManagementPanel({
   zoneLastRun,
   rollbackUpdates,
   onRollbackRecord,
+  busy = false,
 }: ZoneManagementPanelProps) {
   const [openMenuKey, setOpenMenuKey] = useState<string | null>(null);
 
@@ -472,6 +474,7 @@ export default function ZoneManagementPanel({
                                   <button
                                     type="button"
                                     className="action"
+                                    disabled={busy}
                                     onClick={() =>
                                       onUpdateRecord(
                                         zone.id,
@@ -536,6 +539,7 @@ export default function ZoneManagementPanel({
                                           type="button"
                                           className="record-menu-item"
                                           role="menuitem"
+                                          disabled={busy}
                                           onClick={() => {
                                             onUpdateRecord(
                                               zone.id,
@@ -554,9 +558,9 @@ export default function ZoneManagementPanel({
                                           type="button"
                                           className="record-menu-item danger"
                                           role="menuitem"
-                                          disabled={rollbackDisabled}
+                                          disabled={rollbackDisabled || busy}
                                           onClick={() => {
-                                            if (!rollbackDisabled) {
+                                            if (!rollbackDisabled && !busy) {
                                               void onRollbackRecord(zone.id, record);
                                             }
                                             setOpenMenuKey(null);

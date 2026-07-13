@@ -6,13 +6,18 @@ import { requireSessionUser } from "@/lib/auth";
 import { getPublicIp } from "@/lib/ip";
 import { getUserTokenById } from "@/lib/tokens";
 import { logAuditEvent } from "@/lib/audit";
+import { isValidCloudflareId } from "@/lib/cloudflareIds";
 
 export const runtime = "nodejs";
 
+const cloudflareId = z.string().refine(isValidCloudflareId, {
+  message: "Invalid identifier.",
+});
+
 const payloadSchema = z.object({
-  zoneId: z.string().min(1),
-  recordId: z.string().min(1),
-  tokenId: z.string().min(1),
+  zoneId: cloudflareId,
+  recordId: cloudflareId,
+  tokenId: cloudflareId,
   ttl: z.number().int().min(1).max(86400),
   proxied: z.boolean(),
   comment: z.string().max(500).optional().nullable(),
