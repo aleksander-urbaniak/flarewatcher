@@ -27,18 +27,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git fetch --tags --force
-
-          latest_tag="$(git tag -l 'v*' --sort=-v:refname | head -n 1)"
-          if [ -z "$latest_tag" ]; then
-            next_tag="v1.0.0"
-          else
-            version="${latest_tag#v}"
-            IFS='.' read -r major minor patch <<< "$version"
-            patch=$((patch + 1))
-            next_tag="v${major}.${minor}.${patch}"
-          fi
-
+          version="$(node -p "require('./package.json').version")"
+          next_tag="v${version}"
           echo "value=$next_tag" >> "$GITHUB_OUTPUT"
           echo "Next tag: $next_tag"
 
