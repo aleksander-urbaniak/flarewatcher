@@ -5,6 +5,8 @@ import { requireSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { logAuditEvent } from "@/lib/audit";
 import { decryptSecret, encryptSecret, isEncryptedSecret } from "@/lib/secrets";
+import { isValidDiscordWebhookUrl } from "@/lib/alerts";
+import { isValidCloudflareId } from "@/lib/cloudflareIds";
 
 export const runtime = "nodejs";
 
@@ -13,12 +15,19 @@ const settingsSchema = z.object({
   monitoredRecords: z
     .array(
       z.object({
-        zoneId: z.string().min(1),
-        recordId: z.string().min(1),
+        zoneId: z.string().refine(isValidCloudflareId, { message: "Invalid zoneId." }),
+        recordId: z.string().refine(isValidCloudflareId, { message: "Invalid recordId." }),
       })
     )
     .optional(),
-  discordWebhookUrl: z.string().url().optional().nullable(),
+  discordWebhookUrl: z
+    .string()
+    .url()
+    .refine((value) => isValidDiscordWebhookUrl(value), {
+      message: "Must be a discord.com webhook URL.",
+    })
+    .optional()
+    .nullable(),
   discordMarkdown: z.string().optional().nullable(),
   discordEnabled: z.boolean().optional(),
   smtpHost: z.string().min(1).optional().nullable(),
@@ -67,7 +76,7 @@ export async function GET() {
             smtpHost: settings.smtpHost,
             smtpPort: settings.smtpPort,
             smtpUser: settings.smtpUser,
-            smtpPass: decodedSmtpPass,
+            smtpPassSet: Boolean(decodedSmtpPass),
             smtpFrom: settings.smtpFrom,
             smtpTo: settings.smtpTo,
             smtpMessage: settings.smtpMessage,
@@ -186,7 +195,7 @@ export async function POST(request: Request) {
         smtpHost: saved.smtpHost,
         smtpPort: saved.smtpPort,
         smtpUser: saved.smtpUser,
-        smtpPass: decryptSecret(saved.smtpPass),
+        smtpPassSet: Boolean(decryptSecret(saved.smtpPass)),
         smtpFrom: saved.smtpFrom,
         smtpTo: saved.smtpTo,
         smtpMessage: saved.smtpMessage,

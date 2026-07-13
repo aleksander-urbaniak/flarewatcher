@@ -4,6 +4,50 @@ import { decryptSecret, encryptSecret, isEncryptedSecret } from "@/lib/secrets";
 
 export const REQUIRED_PERMISSIONS = ["Zone:Read", "Zone:DNS:Edit"] as const;
 
+const MAX_CLOUDFLARE_PAGES = 20;
+
+// Cloudflare list endpoints paginate; fetching only page 1 silently drops
+// results for accounts with more zones/records than fit on one page.
+export async function fetchCloudflarePaginated<T>(
+  baseUrl: string,
+  token: string,
+  perPage: number
+): Promise<{ success: true; result: T[] } | { success: false; message: string }> {
+  const result: T[] = [];
+  const separator = baseUrl.includes("?") ? "&" : "?";
+
+  for (let page = 1; page <= MAX_CLOUDFLARE_PAGES; page += 1) {
+    const response = await fetch(`${baseUrl}${separator}per_page=${perPage}&page=${page}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+
+    const data = (await response.json()) as {
+      success?: boolean;
+      errors?: { message: string }[];
+      result?: T[];
+      result_info?: { total_pages?: number };
+    };
+
+    if (!data.success) {
+      return {
+        success: false,
+        message: data.errors?.[0]?.message || "Cloudflare request failed.",
+      };
+    }
+
+    const pageResult = data.result ?? [];
+    result.push(...pageResult);
+
+    const totalPages = data.result_info?.total_pages ?? 1;
+    if (page >= totalPages || pageResult.length === 0) {
+      break;
+    }
+  }
+
+  return { success: true, result };
+}
+
 const normalizePermission = (value: string) =>
   value
     .toLowerCase()

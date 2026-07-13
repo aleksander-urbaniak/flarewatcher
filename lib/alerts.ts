@@ -14,6 +14,29 @@ type AlertPayload = {
 };
 
 const safeTrim = (value?: string | null) => (value ? value.trim() : "");
+
+const ALLOWED_DISCORD_HOSTS = new Set([
+  "discord.com",
+  "discordapp.com",
+  "canary.discord.com",
+  "ptb.discord.com",
+]);
+
+// Restricting to Discord's own webhook hosts prevents the webhook URL field
+// from being used as a generic SSRF proxy (e.g. pointing it at an internal
+// service or cloud metadata endpoint).
+export const isValidDiscordWebhookUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      ALLOWED_DISCORD_HOSTS.has(url.hostname) &&
+      url.pathname.startsWith("/api/webhooks/")
+    );
+  } catch {
+    return false;
+  }
+};
 export async function sendAlerts(userId: string, payload: AlertPayload) {
   const settings = await prisma.userSettings.findUnique({
     where: { userId },
@@ -78,7 +101,7 @@ export async function sendAlerts(userId: string, payload: AlertPayload) {
     } catch {}
   }
 
-  if (discordEnabled && discordWebhookUrl) {
+  if (discordEnabled && discordWebhookUrl && isValidDiscordWebhookUrl(discordWebhookUrl)) {
     try {
       await fetch(discordWebhookUrl, {
         method: "POST",
@@ -139,6 +162,11 @@ export async function sendTestAlert(
     if (!discordWebhookUrl) {
       throw new Error("Discord webhook is missing.");
     }
+    if (!isValidDiscordWebhookUrl(discordWebhookUrl)) {
+      throw new Error(
+        "Discord webhook URL must be an https://discord.com/api/webhooks/... URL."
+      );
+    }
     const template = normalizeDiscordTemplate(
       discordMarkdown || DEFAULT_DISCORD_TEMPLATE
     );
@@ -154,8 +182,10 @@ export async function sendTestAlert(
       body: JSON.stringify({ content: discordMessage }),
     });
     if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Discord test failed: ${response.status} ${text}`.trim());
+      // Don't reflect the response body back to the caller: the webhook
+      // host is validated, but echoing arbitrary response content is still
+      // an unnecessary information-disclosure surface.
+      throw new Error(`Discord test failed with status ${response.status}.`);
     }
     return;
   }

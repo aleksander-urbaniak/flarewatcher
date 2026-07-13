@@ -16,6 +16,7 @@ export default function ProfileDetailsPanel() {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -39,10 +40,32 @@ export default function ProfileDetailsPanel() {
     };
   }, []);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setStatusMessage("Profile changes stored locally for now.");
-    setTimeout(() => setStatusMessage(""), 4000);
+    if (submitting) {
+      return;
+    }
+    setSubmitting(true);
+    setStatusMessage("");
+    try {
+      const response = await fetch("/api/auth/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: displayName, email }),
+      });
+      const data = (await response.json()) as { status: string; message?: string };
+      if (!response.ok || data.status !== "success") {
+        throw new Error(data.message || "Unable to save profile.");
+      }
+      setStatusMessage("Profile updated.");
+    } catch (error) {
+      setStatusMessage(
+        error instanceof Error ? error.message : "Unable to save profile."
+      );
+    } finally {
+      setSubmitting(false);
+      setTimeout(() => setStatusMessage(""), 4000);
+    }
   };
 
   return (
@@ -74,7 +97,9 @@ export default function ProfileDetailsPanel() {
           />
         </label>
         <div className="panel-actions">
-          <button type="submit">Save profile</button>
+          <button type="submit" disabled={submitting}>
+            {submitting ? "Saving..." : "Save profile"}
+          </button>
           {statusMessage ? <span className="form-status">{statusMessage}</span> : null}
         </div>
       </form>

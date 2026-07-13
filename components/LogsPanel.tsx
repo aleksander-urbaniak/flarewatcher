@@ -62,6 +62,13 @@ type UserAudit = {
   createdAt: string;
 };
 
+type ServerIpChangeEvent = {
+  id: string;
+  previousIp: string;
+  newIp: string;
+  detectedAt: string;
+};
+
 type TimelineSource = "audit" | "local" | "derived";
 
 type IpTimelineEvent = {
@@ -168,6 +175,7 @@ const formatDetailValue = (value: unknown): string => {
 
 export default function LogsPanel() {
   const [logs, setLogs] = useState<LogItem[]>([]);
+  const [serverIpChanges, setServerIpChanges] = useState<ServerIpChangeEvent[]>([]);
   const [auditLog, setAuditLog] = useState<UpdateRecord[]>([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
   const [userAudit, setUserAudit] = useState<UserAudit[]>([]);
@@ -264,6 +272,20 @@ export default function LogsPanel() {
     } catch {}
   }, [applyIpState]);
 
+  const loadServerIpChanges = useCallback(async () => {
+    try {
+      const response = await fetch(
+        `/api/ip-changes?months=${IP_LOOKBACK_MONTHS}`,
+        { cache: "no-store" }
+      );
+      if (!response.ok) {
+        return;
+      }
+      const data = (await response.json()) as { events: ServerIpChangeEvent[] };
+      setServerIpChanges(data.events ?? []);
+    } catch {}
+  }, []);
+
   const loadAuditLog = useCallback(async () => {
     setLoadingAudit(true);
     try {
@@ -297,10 +319,11 @@ export default function LogsPanel() {
 
   useEffect(() => {
     setLogs(loadPersistedLogs());
+    void loadServerIpChanges();
     void loadAuditLog();
     void loadUserAudit();
     void loadPublicIp();
-  }, [loadAuditLog, loadPublicIp, loadUserAudit]);
+  }, [loadAuditLog, loadPublicIp, loadServerIpChanges, loadUserAudit]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -651,19 +674,21 @@ export default function LogsPanel() {
 
   const ipTimeline = useMemo<IpTimelineEvent[]>(() => {
     const lookbackStart = getLookbackStart().getTime();
-    const auditTransitions = auditLog
+
+    // Server-tracked IP change events — one per actual IP change, authoritative.
+    const serverTransitions = serverIpChanges
       .map((entry, index) => {
-        const createdAt = new Date(entry.createdAt).getTime();
+        const createdAt = new Date(entry.detectedAt).getTime();
         if (!Number.isFinite(createdAt) || createdAt < lookbackStart) {
           return null;
         }
-        const previous = normalizeIp(entry.previousContent);
-        const current = normalizeIp(entry.content);
+        const previous = normalizeIp(entry.previousIp);
+        const current = normalizeIp(entry.newIp);
         if (!isLikelyIp(previous) || !isLikelyIp(current) || previous === current) {
           return null;
         }
         return {
-          id: `audit-${entry.id}-${index}`,
+          id: `server-${entry.id}-${index}`,
           createdAt,
           previousIp: previous,
           currentIp: current,
@@ -681,6 +706,42 @@ export default function LogsPanel() {
           source: "audit";
         } => Boolean(entry)
       );
+
+    // Audit-log-derived transitions: used as fallback when server events are
+    // not yet available (e.g. instance just updated). Kept separate so they
+    // don't re-introduce duplicates once server events are present.
+    const auditTransitions = serverTransitions.length === 0
+      ? auditLog
+          .map((entry, index) => {
+            const createdAt = new Date(entry.createdAt).getTime();
+            if (!Number.isFinite(createdAt) || createdAt < lookbackStart) {
+              return null;
+            }
+            const previous = normalizeIp(entry.previousContent);
+            const current = normalizeIp(entry.content);
+            if (!isLikelyIp(previous) || !isLikelyIp(current) || previous === current) {
+              return null;
+            }
+            return {
+              id: `audit-${entry.id}-${index}`,
+              createdAt,
+              previousIp: previous,
+              currentIp: current,
+              source: "audit" as const,
+            };
+          })
+          .filter(
+            (
+              entry
+            ): entry is {
+              id: string;
+              createdAt: number;
+              previousIp: string;
+              currentIp: string;
+              source: "audit";
+            } => Boolean(entry)
+          )
+      : [];
 
     const localTransitions = logs
       .map((entry, index) => {
@@ -719,6 +780,7 @@ export default function LogsPanel() {
       );
 
     const mergedReal = collapseIpTransitions([
+      ...serverTransitions,
       ...auditTransitions,
       ...localTransitions,
     ]).slice(-IP_TIMELINE_MAX_ITEMS);
@@ -757,7 +819,7 @@ export default function LogsPanel() {
       ...entry,
       isCurrent: index === currentIndex,
     }));
-  }, [auditLog, currentIp, logs, previousIp]);
+  }, [auditLog, currentIp, logs, previousIp, serverIpChanges]);
 
   const currentTimelineNodeId = useMemo(
     () => ipTimeline.find((item) => item.isCurrent)?.id ?? null,
@@ -954,7 +1016,10 @@ export default function LogsPanel() {
                 <p className="muted">No logs yet.</p>
               ) : (
                 logs.map((log, index) => (
-                  <div key={index} className={`log-line ${log.type}`}>
+                  <div
+                    key={`${log.createdAt}-${index}`}
+                    className={`log-line ${log.type}`}
+                  >
                     <span>[{new Date(log.createdAt).toLocaleTimeString()}]</span>
                     <p>{log.message}</p>
                   </div>

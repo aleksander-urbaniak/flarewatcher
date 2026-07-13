@@ -6,6 +6,7 @@ type ConfigPanelProps = {
   tokenName: string;
   tokenValue: string;
   status: "idle" | "fetching" | "updating";
+  busy?: boolean;
   onTokenNameChange: (value: string) => void;
   onTokenValueChange: (value: string) => void;
   onSync: () => void;
@@ -17,6 +18,7 @@ export default function ConfigPanel({
   tokenName,
   tokenValue,
   status,
+  busy = false,
   onTokenNameChange,
   onTokenValueChange,
   onSync,
@@ -56,19 +58,20 @@ export default function ConfigPanel({
             type="button"
             className="ghost"
             onClick={onSync}
-            disabled={status !== "idle"}
+            disabled={status !== "idle" || busy}
           >
             <RefreshCw size={14} className={status !== "idle" ? "spin" : ""} />
             Sync Cloudflare
           </button>
           <button
             type="button"
+            disabled={busy}
             onClick={() => {
               onBlurInterval();
               onSaveToken();
             }}
           >
-            Apply configuration
+            {busy ? "Applying..." : "Apply configuration"}
           </button>
         </div>
       </div>

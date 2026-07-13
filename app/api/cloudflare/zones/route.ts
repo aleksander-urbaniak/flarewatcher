@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { requireSessionUser } from "@/lib/auth";
-import { getAllUserTokens } from "@/lib/tokens";
+import { fetchCloudflarePaginated, getAllUserTokens } from "@/lib/tokens";
 
 export const runtime = "nodejs";
+
+type CloudflareZone = { id: string; name: string; status: string };
 
 export async function GET() {
   try {
@@ -12,29 +14,17 @@ export async function GET() {
 
     const results = await Promise.allSettled(
       tokens.map(async (token) => {
-        const response = await fetch(
-          "https://api.cloudflare.com/client/v4/zones?per_page=50",
-          {
-            headers: {
-              Authorization: `Bearer ${token.token}`,
-            },
-            cache: "no-store",
-          }
+        const page = await fetchCloudflarePaginated<CloudflareZone>(
+          "https://api.cloudflare.com/client/v4/zones",
+          token.token,
+          50
         );
 
-        const data = (await response.json()) as {
-          success?: boolean;
-          errors?: { message: string }[];
-          result?: { id: string; name: string; status: string }[];
-        };
-
-        if (!data.success) {
-          throw new Error(
-            data.errors?.[0]?.message || "Failed to fetch zones."
-          );
+        if (!page.success) {
+          throw new Error(page.message);
         }
 
-        return (data.result ?? []).map((zone) => ({
+        return page.result.map((zone) => ({
           ...zone,
           tokenId: token.id,
           tokenName: token.name,

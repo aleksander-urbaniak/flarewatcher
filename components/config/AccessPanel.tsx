@@ -28,6 +28,7 @@ type AccessPanelProps = {
   editingTokenId: string | null;
   editTokenName: string;
   editTokenValue: string;
+  busy?: boolean;
   onStartEdit: (token: TokenItem) => void;
   onCancelEdit: () => void;
   onSaveEdit: (tokenId: string) => void;
@@ -44,6 +45,7 @@ export default function AccessPanel({
   editingTokenId,
   editTokenName,
   editTokenValue,
+  busy = false,
   onStartEdit,
   onCancelEdit,
   onSaveEdit,
@@ -127,6 +129,7 @@ export default function AccessPanel({
                         <button
                           type="button"
                           className="primary"
+                          disabled={busy}
                           onClick={() => onSaveEdit(token.id)}
                         >
                           Save
@@ -143,6 +146,7 @@ export default function AccessPanel({
                         <button
                           type="button"
                           className="asset-primary"
+                          disabled={busy}
                           onClick={() => onVerifyToken(token.id)}
                         >
                           Verify DNS
@@ -150,6 +154,7 @@ export default function AccessPanel({
                         <button
                           type="button"
                           className="asset-icon"
+                          disabled={busy}
                           onClick={() => onStartEdit(token)}
                         >
                           <Pencil size={16} />
@@ -157,6 +162,7 @@ export default function AccessPanel({
                         <button
                           type="button"
                           className="asset-icon danger"
+                          disabled={busy}
                           onClick={() => onRemoveToken(token.id)}
                         >
                           <Trash2 size={16} />

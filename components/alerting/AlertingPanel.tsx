@@ -24,6 +24,7 @@ type AlertingPanelProps = {
   smtpPort: string;
   smtpUser: string;
   smtpPass: string;
+  smtpPassSet: boolean;
   smtpFrom: string;
   smtpTo: string;
   smtpMessage: string;
@@ -60,6 +61,7 @@ export default function AlertingPanel({
   smtpPort,
   smtpUser,
   smtpPass,
+  smtpPassSet,
   smtpFrom,
   smtpTo,
   smtpMessage,
@@ -443,7 +445,7 @@ export default function AlertingPanel({
                 <span>SMTP pass</span>
                 <input
                   type="password"
-                  placeholder="password"
+                  placeholder={smtpPassSet ? "Saved (leave blank to keep)" : "password"}
                   value={smtpPass}
                   onChange={(event) => onSmtpPass(event.target.value)}
                 />

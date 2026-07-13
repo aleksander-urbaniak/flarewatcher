@@ -47,7 +47,8 @@ export async function POST(request: Request) {
     }
 
     const { email, password } = parsed.data;
-    const identityKey = `login:${ip}:${email.toLowerCase()}`;
+    // Keyed by email only (not IP) so a spoofed X-Forwarded-For can't reset the account lockout.
+    const identityKey = `login:${email.toLowerCase()}`;
     const lock = getLockout(identityKey);
     if (lock.locked) {
       return NextResponse.json(
@@ -101,11 +102,12 @@ export async function POST(request: Request) {
           { status: 401 }
         );
       }
-      const valid2fa = verifyTwoFactorToken(
+      const result2fa = verifyTwoFactorToken(
         parsed.data.twoFactorToken,
-        user.twoFactorSecret
+        user.twoFactorSecret,
+        user.twoFactorLastStep
       );
-      if (!valid2fa) {
+      if (!result2fa.valid) {
         recordFailure(identityKey, {
           maxAttempts: 5,
           windowMs: 15 * 60 * 1000,
@@ -116,6 +118,10 @@ export async function POST(request: Request) {
           { status: 401 }
         );
       }
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { twoFactorLastStep: result2fa.timeStep },
+      });
     }
 
     clearFailures(identityKey);

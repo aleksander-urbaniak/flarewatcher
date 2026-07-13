@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getUserDnsUpdateWhere } from "@/lib/updateAccess";
 
 export const runtime = "nodejs";
 
@@ -33,11 +34,12 @@ export async function GET(request: Request) {
     const user = await requireSessionUser();
     const take = getTake(request);
     const since = getSince(request);
+    const ownershipWhere = await getUserDnsUpdateWhere(user.id, user.email);
 
     const [updates, events] = await Promise.all([
       prisma.dnsUpdate.findMany({
         where: {
-          actor: user.email,
+          ...ownershipWhere,
           ...(since ? { createdAt: { gte: since } } : null),
         },
         orderBy: { createdAt: "desc" },
@@ -71,8 +73,9 @@ export async function GET(request: Request) {
 export async function DELETE() {
   try {
     const user = await requireSessionUser();
+    const ownershipWhere = await getUserDnsUpdateWhere(user.id, user.email);
     const [updateResult, eventResult] = await Promise.all([
-      prisma.dnsUpdate.deleteMany({ where: { actor: user.email } }),
+      prisma.dnsUpdate.deleteMany({ where: ownershipWhere }),
       prisma.auditEvent.deleteMany({ where: { userId: user.id } }),
     ]);
 

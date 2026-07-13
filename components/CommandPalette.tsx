@@ -24,6 +24,8 @@ export default function CommandPalette({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const launcherRef = useRef<HTMLButtonElement | null>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -42,13 +44,17 @@ export default function CommandPalette({
   }, []);
 
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
+      window.requestAnimationFrame(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      });
       return;
     }
-    window.requestAnimationFrame(() => {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    });
+    // Restore focus to whatever triggered the palette (or the launcher
+    // button as a fallback) so keyboard users don't lose their place.
+    (previouslyFocusedRef.current ?? launcherRef.current)?.focus();
   }, [open]);
 
   const filteredActions = useMemo(() => {
@@ -78,6 +84,7 @@ export default function CommandPalette({
   return (
     <>
       <button
+        ref={launcherRef}
         type="button"
         className="cmd-launcher"
         aria-label="Open command palette"
