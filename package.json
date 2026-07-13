@@ -11,6 +11,9 @@
     "prisma:generate": "prisma generate",
     "prisma:db": "prisma db push",
     "prisma:migrate": "prisma migrate deploy",
+    "version:patch": "npm version patch --no-git-tag-version",
+    "version:minor": "npm version minor --no-git-tag-version",
+    "version:major": "npm version major --no-git-tag-version",
     "version:resolve": "node scripts/resolve-version.cjs",
     "version:resolve:tag": "node scripts/resolve-version.cjs --with-v",
     "security:audit": "node scripts/check-npm-audit-fixable.cjs"
