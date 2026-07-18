@@ -1109,20 +1109,21 @@ export default function UpdatePanel({ view = "zones" }: { view?: UpdatePanelView
         const ip = await fetchPublicIp();
         const shouldSuppress = suppressNextIpAlertRef.current;
         if (ip !== currentIp) {
+          const isInitialDetection = currentIp === null;
           if (shouldSuppress) {
             suppressNextIpAlertRef.current = false;
-          } else {
-            addLog(`IP change detected: ${currentIp ?? "-"} -> ${ip}`, "info");
+          } else if (!isInitialDetection) {
+            addLog(`IP change detected: ${currentIp} -> ${ip}`, "info");
             addNotification(
               "IP change detected",
-              `${currentIp ?? "-"} -> ${ip}`,
+              `${currentIp} -> ${ip}`,
               "info"
             );
           }
           setPreviousIp(currentIp);
           setCurrentIp(ip);
           persistIpHistory(ip, currentIp);
-          if (!shouldSuppress && notifyOnIpChange) {
+          if (!shouldSuppress && !isInitialDetection && notifyOnIpChange) {
             await fetch("/api/alerts/ip-change", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
