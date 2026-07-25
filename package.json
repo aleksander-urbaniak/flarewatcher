@@ -23,7 +23,7 @@
     "bcryptjs": "^3.0.3",
     "lucide-react": "^1.14.0",
     "next": "16.2.10",
-    "nodemailer": "^8.0.5",
+    "nodemailer": "^9.0.1",
     "otplib": "^13.2.1",
     "prisma": "6.19.3",
     "qrcode": "^1.5.4",
