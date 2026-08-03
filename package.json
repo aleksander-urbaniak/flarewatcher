@@ -28,7 +28,7 @@
     "prisma": "6.19.3",
     "qrcode": "^1.5.4",
     "react": "19.2.6",
-    "react-dom": "19.2.5",
+    "react-dom": "19.2.7",
     "react-markdown": "^10.1.0",
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
